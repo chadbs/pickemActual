@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:api.collegefootballdata.com)",
+      "Bash(npm create:*)",
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(npx tailwindcss init:*)",
+      "Bash(npm run install:all:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run dev:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd //c:*)",
+      "Bash(kill:*)",
+      "Bash(curl:*)",
+      "Bash(cmd /c:*)",
+      "Bash(node:*)",
+      "Bash(npx tailwindcss:*)",
+      "Bash(npm run check-games:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

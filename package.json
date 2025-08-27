@@ -1,0 +1,27 @@
+{
+  "name": "cfb-pickem-claude",
+  "version": "1.0.0",
+  "description": "College Football Pick'em Game for Friends",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "cd client && npm run dev",
+    "dev:server": "cd server && npm run dev",
+    "build": "npm run build:client && npm run build:server",
+    "build:all": "npm run install:all && npm run build",
+    "build:client": "cd client && npm run build",
+    "build:server": "cd server && npm run build",
+    "install:all": "npm install && cd client && npm install && cd ../server && npm install",
+    "start": "cd server && npm start",
+    "start:prod": "NODE_ENV=production cd server && npm start",
+    "deploy": "npm run build:all && npm run start:prod"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "workspaces": [
+    "client",
+    "server",
+    "shared"
+  ]
+}

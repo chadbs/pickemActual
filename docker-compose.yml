@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  cfb-pickem:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      # Add your API keys here
+      - CFBD_API_KEY=${CFBD_API_KEY}
+      - ODDS_API_KEY=${ODDS_API_KEY}
+    volumes:
+      # Persist database
+      - cfb_data:/app/server/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  cfb_data:
+    driver: local
