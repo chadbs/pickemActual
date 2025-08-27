@@ -13,7 +13,7 @@
     "build:server": "cd server && npm run build",
     "install:all": "npm install && cd client && npm install && cd ../server && npm install",
     "start": "cd server && npm start",
-    "start:prod": "NODE_ENV=production cd server && npm start",
+    "start:prod": "cd server && npm run start:prod",
     "deploy": "npm run build:all && npm run start:prod"
   },
   "devDependencies": {
