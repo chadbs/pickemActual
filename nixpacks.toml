@@ -1,8 +1,14 @@
+[providers]
+node = "20.19.0"
+
 [variables]
 NODE_VERSION = "20.19.0"
 
+[phases.setup]
+nixPkgs = ["nodejs-20_x", "npm"]
+
 [phases.install]
-cmds = ["npm install", "cd client && npm install", "cd server && npm install"]
+cmds = ["node --version", "npm --version", "npm install", "cd client && npm install", "cd server && npm install"]
 
 [phases.build]
 cmds = ["npm run build"]
