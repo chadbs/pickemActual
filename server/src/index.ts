@@ -25,8 +25,11 @@ app.use(cors());
 app.use(express.json());
 
 // Serve static files in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/dist')));
+const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT;
+if (isProduction) {
+  const clientDistPath = path.join(__dirname, '../../client/dist');
+  console.log('Serving static files from:', clientDistPath);
+  app.use(express.static(clientDistPath));
 }
 
 // Create data directory if it doesn't exist
@@ -62,13 +65,15 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 });
 
 // Serve React app for non-API routes in production
-if (process.env.NODE_ENV === 'production') {
+if (isProduction) {
   app.get('*', (req, res) => {
     // Don't serve React for API routes
     if (req.path.startsWith('/api')) {
       return res.status(404).json({ error: 'API route not found' });
     }
-    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+    const indexPath = path.join(__dirname, '../../client/dist/index.html');
+    console.log('Serving index.html from:', indexPath);
+    res.sendFile(indexPath);
   });
 } else {
   // 404 handler for development

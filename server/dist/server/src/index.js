@@ -24,8 +24,11 @@ const PORT = process.env.PORT || 3003;
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
 // Serve static files in production
-if (process.env.NODE_ENV === 'production') {
-    app.use(express_1.default.static(path_1.default.join(__dirname, '../client/dist')));
+const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT;
+if (isProduction) {
+    const clientDistPath = path_1.default.join(__dirname, '../../client/dist');
+    console.log('Serving static files from:', clientDistPath);
+    app.use(express_1.default.static(clientDistPath));
 }
 // Create data directory if it doesn't exist
 const dataDir = path_1.default.join(__dirname, '../data');
@@ -56,13 +59,15 @@ app.use((err, req, res, next) => {
     });
 });
 // Serve React app for non-API routes in production
-if (process.env.NODE_ENV === 'production') {
+if (isProduction) {
     app.get('*', (req, res) => {
         // Don't serve React for API routes
         if (req.path.startsWith('/api')) {
             return res.status(404).json({ error: 'API route not found' });
         }
-        res.sendFile(path_1.default.join(__dirname, '../client/dist/index.html'));
+        const indexPath = path_1.default.join(__dirname, '../../client/dist/index.html');
+        console.log('Serving index.html from:', indexPath);
+        res.sendFile(indexPath);
     });
 }
 else {
