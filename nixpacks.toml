@@ -1,5 +1,5 @@
 [phases.install]
-cmds = ["npm run install:all"]
+cmds = ["npm ci --include=dev", "cd client && npm ci --include=dev", "cd server && npm ci --include=dev"]
 
 [phases.build]
 cmds = ["npm run build:all"]
