@@ -1,5 +1,5 @@
 [variables]
-NODE_VERSION = "20"
+NODE_VERSION = "20.19.0"
 
 [phases.install]
 cmds = ["npm install", "cd client && npm install", "cd server && npm install"]

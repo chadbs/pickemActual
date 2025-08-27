@@ -6,5 +6,8 @@
   "deploy": {
     "startCommand": "npm run start:prod",
     "healthcheckPath": "/api/health"
+  },
+  "variables": {
+    "NODE_VERSION": "20.19.0"
   }
 }
