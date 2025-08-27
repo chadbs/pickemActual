@@ -1,8 +1,8 @@
 [phases.install]
-cmds = ["npm ci --include=dev", "cd client && npm ci --include=dev", "cd server && npm ci --include=dev"]
+cmds = ["npm install", "cd client && npm install", "cd server && npm install"]
 
 [phases.build]
-cmds = ["npm run build:all"]
+cmds = ["npm run build"]
 
 [start]
 cmd = "npm run start:prod"
