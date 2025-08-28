@@ -9,10 +9,10 @@ import { startScheduler } from './services/scheduler';
 
 // Import routes
 import userRoutes from './routes/users';
-import gameRoutes from './routes/games';
-import pickRoutes from './routes/picks';
-import weekRoutes from './routes/weeks';
-import leaderboardRoutes from './routes/leaderboard';
+// import gameRoutes from './routes/games';
+// import pickRoutes from './routes/picks';
+// import weekRoutes from './routes/weeks';
+// import leaderboardRoutes from './routes/leaderboard';
 import adminRoutes from './routes/admin-minimal';
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
@@ -61,10 +61,10 @@ if (!fs.existsSync(dataDir)) {
 
 // Routes
 app.use('/api/users', userRoutes);
-app.use('/api/games', gameRoutes);
-app.use('/api/picks', pickRoutes);
-app.use('/api/weeks', weekRoutes);
-app.use('/api/leaderboard', leaderboardRoutes);
+// app.use('/api/games', gameRoutes);
+// app.use('/api/picks', pickRoutes);
+// app.use('/api/weeks', weekRoutes);
+// app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Health check endpoint
