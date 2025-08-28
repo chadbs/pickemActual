@@ -104,7 +104,7 @@ const GameCard: React.FC<GameCardProps> = ({
 
       {/* Spread */}
       {game.spread && (
-        <div className="text-center mb-3 p-2 bg-gray-50 rounded text-sm">
+        <div className="text-center mb-3 p-2 bg-gray-50 rounded text-base font-medium">
           Spread: {game.favorite_team} -{game.spread}
         </div>
       )}
