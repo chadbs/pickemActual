@@ -7,17 +7,15 @@ exports.closeDatabase = exports.allQuery = exports.getQuery = exports.runQuery =
 const sqlite3_1 = __importDefault(require("sqlite3"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
-// Use Railway-compatible database path
+// Use Railway-compatible database path with persistent volume
 const DB_PATH = process.env.RAILWAY_ENVIRONMENT
-    ? '/tmp/cfb_pickem.db' // Railway temp directory
+    ? '/data/cfb_pickem.db' // Railway persistent volume
     : path_1.default.join(__dirname, '../../data/cfb_pickem.db'); // Local development
-// Ensure directory exists for local development
-if (!process.env.RAILWAY_ENVIRONMENT) {
-    const dbDir = path_1.default.dirname(DB_PATH);
-    if (!fs_1.default.existsSync(dbDir)) {
-        fs_1.default.mkdirSync(dbDir, { recursive: true });
-        console.log('Created database directory:', dbDir);
-    }
+// Ensure directory exists
+const dbDir = path_1.default.dirname(DB_PATH);
+if (!fs_1.default.existsSync(dbDir)) {
+    fs_1.default.mkdirSync(dbDir, { recursive: true });
+    console.log('Created database directory:', dbDir);
 }
 console.log('Using database path:', DB_PATH);
 // Create database connection
