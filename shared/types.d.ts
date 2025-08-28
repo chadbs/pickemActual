@@ -61,6 +61,9 @@ export interface SeasonStanding {
 }
 export interface GameWithPick extends Game {
     user_pick?: Pick;
+    deadline?: string;
+    week_number?: number;
+    season_year?: number;
 }
 export interface LeaderboardEntry {
     user: User;
