@@ -273,6 +273,22 @@ export const useRecalculateScores = () => {
   });
 };
 
+export const useResetApp = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: () => adminApi.resetApp().then(res => res.data),
+    onSuccess: () => {
+      // Invalidate all queries to refresh the app state
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['picks'] });
+      queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+      queryClient.invalidateQueries({ queryKey: ['admin'] });
+      queryClient.invalidateQueries({ queryKey: ['week'] });
+    },
+  });
+};
+
 // ========== UTILITY HOOKS ==========
 
 export const useLocalStorage = <T>(key: string, initialValue: T) => {

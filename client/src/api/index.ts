@@ -151,6 +151,8 @@ export const adminApi = {
   
   recalculate: () => api.post<{ message: string }>('/admin/recalculate'),
   
+  resetApp: () => api.post<{ message: string; warning: string }>('/admin/reset-app', { confirm: 'RESET_ALL_DATA' }),
+  
   getAPIUsage: () => api.get<any>('/admin/api-usage'),
   
   maintenance: (action: string) =>

@@ -16,6 +16,7 @@ import {
   useFetchGames,
   useUpdateScores,
   useRecalculateScores,
+  useResetApp,
   useCurrentUser
 } from '../hooks/useApi';
 
@@ -26,6 +27,7 @@ const AdminPage: React.FC = () => {
   const fetchGamesMutation = useFetchGames();
   const updateScoresMutation = useUpdateScores();
   const recalculateScoresMutation = useRecalculateScores();
+  const resetAppMutation = useResetApp();
 
   // Check if user is admin
   if (!currentUser?.is_admin) {
@@ -74,6 +76,27 @@ const AdminPage: React.FC = () => {
       } catch (error) {
         alert('Failed to recalculate scores. Check console for details.');
       }
+    }
+  };
+
+  const handleResetApp = async () => {
+    const confirmText = 'RESET ALL DATA';
+    const userConfirm = prompt(
+      `⚠️ DANGER: This will delete ALL users, picks, and scores!\n\n` +
+      `Games and weeks will be preserved but reset to scheduled status.\n\n` +
+      `Type "${confirmText}" to confirm this action:`
+    );
+    
+    if (userConfirm === confirmText) {
+      try {
+        await resetAppMutation.mutateAsync();
+        alert('🔥 App reset successfully! All user data has been cleared.');
+        window.location.reload(); // Reload to clear user state
+      } catch (error) {
+        alert('Failed to reset app. Check console for details.');
+      }
+    } else if (userConfirm !== null) {
+      alert('Reset cancelled - confirmation text did not match.');
     }
   };
 
@@ -319,6 +342,32 @@ const AdminPage: React.FC = () => {
                 <li>Always backup data before making significant changes</li>
               </ul>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Danger Zone */}
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+        <div className="flex items-start space-x-3">
+          <ExclamationTriangleIcon className="h-6 w-6 text-red-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h3 className="text-sm font-medium text-red-800 mb-2">🚨 Danger Zone</h3>
+            <p className="text-sm text-red-700 mb-4">
+              Reset the entire application, clearing all users, picks, and scores. 
+              Games and weeks will be preserved but reset to scheduled status.
+            </p>
+            <button
+              onClick={handleResetApp}
+              disabled={resetAppMutation.isPending}
+              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 font-medium text-sm flex items-center space-x-2"
+            >
+              {resetAppMutation.isPending ? (
+                <ButtonSpinner />
+              ) : (
+                <ExclamationTriangleIcon className="h-4 w-4" />
+              )}
+              <span>Reset All User Data</span>
+            </button>
           </div>
         </div>
       </div>

@@ -316,6 +316,38 @@ router.get('/api-usage', async (req, res) => {
   }
 });
 
+// Reset app - clear all user data
+router.post('/reset-app', async (req, res) => {
+  try {
+    const { confirm } = req.body;
+    
+    if (confirm !== 'RESET_ALL_DATA') {
+      return res.status(400).json({ error: 'Must provide confirmation string "RESET_ALL_DATA"' });
+    }
+    
+    console.log('🔥 ADMIN: Resetting all user data...');
+    
+    // Clear all user data (keep games and weeks structure)
+    await runQuery('DELETE FROM picks');
+    await runQuery('DELETE FROM weekly_scores');
+    await runQuery('DELETE FROM season_standings');
+    await runQuery('DELETE FROM users');
+    
+    // Reset game completion status to allow fresh picks
+    await runQuery('UPDATE games SET status = "scheduled", home_score = NULL, away_score = NULL, spread_winner = NULL');
+    
+    console.log('✅ All user data cleared successfully');
+    
+    res.json({ 
+      message: 'App reset successfully - all users, picks, and scores cleared',
+      warning: 'Games and weeks preserved but reset to scheduled status'
+    });
+  } catch (error) {
+    console.error('Error resetting app:', error);
+    res.status(500).json({ error: 'Failed to reset app data' });
+  }
+});
+
 // Database maintenance
 router.post('/maintenance', async (req, res) => {
   try {
@@ -334,6 +366,10 @@ router.post('/maintenance', async (req, res) => {
         
         res.json({ message: 'Old data cleaned up successfully' });
         break;
+        
+      case 'reset_app':
+        // Redirect to dedicated reset endpoint for safety
+        return res.status(400).json({ error: 'Use /admin/reset-app endpoint for app reset' });
         
       case 'vacuum':
         await runQuery('VACUUM');

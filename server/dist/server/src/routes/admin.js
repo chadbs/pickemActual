@@ -258,6 +258,32 @@ router.get('/api-usage', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch API usage' });
     }
 });
+// Reset app - clear all user data
+router.post('/reset-app', async (req, res) => {
+    try {
+        const { confirm } = req.body;
+        if (confirm !== 'RESET_ALL_DATA') {
+            return res.status(400).json({ error: 'Must provide confirmation string "RESET_ALL_DATA"' });
+        }
+        console.log('🔥 ADMIN: Resetting all user data...');
+        // Clear all user data (keep games and weeks structure)
+        await (0, database_1.runQuery)('DELETE FROM picks');
+        await (0, database_1.runQuery)('DELETE FROM weekly_scores');
+        await (0, database_1.runQuery)('DELETE FROM season_standings');
+        await (0, database_1.runQuery)('DELETE FROM users');
+        // Reset game completion status to allow fresh picks
+        await (0, database_1.runQuery)('UPDATE games SET status = "scheduled", home_score = NULL, away_score = NULL, spread_winner = NULL');
+        console.log('✅ All user data cleared successfully');
+        res.json({
+            message: 'App reset successfully - all users, picks, and scores cleared',
+            warning: 'Games and weeks preserved but reset to scheduled status'
+        });
+    }
+    catch (error) {
+        console.error('Error resetting app:', error);
+        res.status(500).json({ error: 'Failed to reset app data' });
+    }
+});
 // Database maintenance
 router.post('/maintenance', async (req, res) => {
     try {
@@ -273,6 +299,9 @@ router.post('/maintenance', async (req, res) => {
                 await (0, database_1.runQuery)('DELETE FROM weeks WHERE season_year < ?', [cutoffDate.getFullYear()]);
                 res.json({ message: 'Old data cleaned up successfully' });
                 break;
+            case 'reset_app':
+                // Redirect to dedicated reset endpoint for safety
+                return res.status(400).json({ error: 'Use /admin/reset-app endpoint for app reset' });
             case 'vacuum':
                 await (0, database_1.runQuery)('VACUUM');
                 res.json({ message: 'Database vacuumed successfully' });
