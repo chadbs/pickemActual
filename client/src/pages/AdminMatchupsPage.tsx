@@ -154,12 +154,16 @@ const AdminMatchupsPage: React.FC = () => {
           <div className="flex items-center space-x-4">
             <button
               onClick={() => {
-                const currentIndex = weeks.findIndex(w => w.id === selectedWeekId);
+                const sortedWeeks = [...weeks].sort((a, b) => a.week_number - b.week_number);
+                const currentIndex = sortedWeeks.findIndex(w => w.id === selectedWeekId);
                 if (currentIndex > 0) {
-                  setSelectedWeekId(weeks[currentIndex - 1].id);
+                  setSelectedWeekId(sortedWeeks[currentIndex - 1].id);
                 }
               }}
-              disabled={weeks.findIndex(w => w.id === selectedWeekId) === 0}
+              disabled={(() => {
+                const sortedWeeks = [...weeks].sort((a, b) => a.week_number - b.week_number);
+                return sortedWeeks.findIndex(w => w.id === selectedWeekId) === 0;
+              })()}
               className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ChevronLeftIcon className="h-5 w-5" />
@@ -172,12 +176,16 @@ const AdminMatchupsPage: React.FC = () => {
             
             <button
               onClick={() => {
-                const currentIndex = weeks.findIndex(w => w.id === selectedWeekId);
-                if (currentIndex < weeks.length - 1) {
-                  setSelectedWeekId(weeks[currentIndex + 1].id);
+                const sortedWeeks = [...weeks].sort((a, b) => a.week_number - b.week_number);
+                const currentIndex = sortedWeeks.findIndex(w => w.id === selectedWeekId);
+                if (currentIndex < sortedWeeks.length - 1) {
+                  setSelectedWeekId(sortedWeeks[currentIndex + 1].id);
                 }
               }}
-              disabled={weeks.findIndex(w => w.id === selectedWeekId) === weeks.length - 1}
+              disabled={(() => {
+                const sortedWeeks = [...weeks].sort((a, b) => a.week_number - b.week_number);
+                return sortedWeeks.findIndex(w => w.id === selectedWeekId) === sortedWeeks.length - 1;
+              })()}
               className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ChevronRightIcon className="h-5 w-5" />
@@ -187,7 +195,7 @@ const AdminMatchupsPage: React.FC = () => {
         
         {/* Week Grid */}
         <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
-          {weeks.map((week) => (
+          {[...weeks].sort((a, b) => a.week_number - b.week_number).map((week) => (
             <button
               key={week.id}
               onClick={() => setSelectedWeekId(week.id)}
