@@ -141,6 +141,9 @@ export const adminApi = {
   
   fetchGames: () => api.post<{ message: string }>('/admin/fetch-games'),
   
+  fetchGamesForWeek: (data: { year: number; week_number: number; week_id?: number }) => 
+    api.post<{ message: string; games_created: number; week_info: any }>('/admin/fetch-games-for-week', data),
+  
   updateScores: () => api.post<{ message: string }>('/admin/update-scores'),
   
   previewGames: (year: number, week: number) =>

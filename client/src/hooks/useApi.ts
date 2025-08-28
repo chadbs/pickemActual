@@ -227,6 +227,19 @@ export const useFetchGames = () => {
   });
 };
 
+export const useFetchGamesForWeek = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (data: { year: number; week_number: number; week_id?: number }) => 
+      adminApi.fetchGamesForWeek(data).then(res => res.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['games'] });
+      queryClient.invalidateQueries({ queryKey: ['week'] });
+    },
+  });
+};
+
 export const useUpdateScores = () => {
   const queryClient = useQueryClient();
   

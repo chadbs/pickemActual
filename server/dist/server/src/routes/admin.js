@@ -44,7 +44,7 @@ router.get('/dashboard', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch admin dashboard' });
     }
 });
-// Manually trigger game fetch
+// Manually trigger game fetch for current week
 router.post('/fetch-games', async (req, res) => {
     try {
         await (0, scheduler_1.fetchWeeklyGames)(true); // Force refresh when called manually
@@ -53,6 +53,83 @@ router.post('/fetch-games', async (req, res) => {
     catch (error) {
         console.error('Error manually fetching games:', error);
         res.status(500).json({ error: 'Failed to fetch games' });
+    }
+});
+// Fetch games for a specific week
+router.post('/fetch-games-for-week', async (req, res) => {
+    try {
+        const { week_id, year, week_number } = req.body;
+        if (!year || !week_number) {
+            return res.status(400).json({ error: 'Year and week_number are required' });
+        }
+        let weekData;
+        if (week_id) {
+            weekData = await (0, database_1.getQuery)('SELECT * FROM weeks WHERE id = ?', [week_id]);
+        }
+        else {
+            weekData = await (0, database_1.getQuery)('SELECT * FROM weeks WHERE week_number = ? AND season_year = ?', [week_number, year]);
+        }
+        if (!weekData) {
+            return res.status(404).json({ error: 'Week not found' });
+        }
+        console.log(`🏈 ADMIN: Fetching games for Week ${week_number}, ${year}...`);
+        // Check if we already have games for this week
+        const existingGames = await (0, database_1.allQuery)('SELECT * FROM games WHERE week_id = ?', [weekData.id]);
+        // Fetch games from CFBD API for the specified week
+        const cfbdGames = await (0, cfbDataApi_1.getTopGamesForWeek)(year, week_number);
+        // Fetch odds data
+        let oddsData = [];
+        try {
+            const rawOdds = await (0, oddsApi_1.getNCAAFootballOdds)();
+            const parsedOdds = (0, oddsApi_1.parseOddsData)(rawOdds);
+            oddsData = parsedOdds;
+            console.log(`Fetched odds for ${oddsData.length} games`);
+        }
+        catch (error) {
+            console.warn('Failed to fetch odds, continuing without spreads:', error);
+        }
+        // Match odds to games
+        const gamesWithOdds = (0, oddsApi_1.matchOddsToGames)(cfbdGames, oddsData);
+        // Select top 8 games (prioritize favorite teams and ranked matchups)
+        const selectedGames = gamesWithOdds.slice(0, 8);
+        // Clear existing games for this week first
+        if (existingGames.length > 0) {
+            await (0, database_1.runQuery)('DELETE FROM games WHERE week_id = ?', [weekData.id]);
+            console.log(`Cleared ${existingGames.length} existing games for Week ${week_number}`);
+        }
+        // Store games in database
+        const createdGames = [];
+        for (const game of selectedGames) {
+            const isFavoriteGame = [game.home_team, game.away_team].some(team => ['Colorado', 'Colorado State', 'Nebraska', 'Michigan'].some(fav => team.toLowerCase().includes(fav.toLowerCase())));
+            const result = await (0, database_1.runQuery)(`INSERT INTO games 
+         (week_id, external_game_id, home_team, away_team, spread, favorite_team, 
+          start_time, status, is_favorite_team_game)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+                weekData.id,
+                game.id?.toString() || null,
+                game.home_team,
+                game.away_team,
+                game.spread || null,
+                game.favorite_team || null,
+                game.start_date || new Date().toISOString(),
+                'scheduled',
+                isFavoriteGame
+            ]);
+            createdGames.push({
+                id: result.lastID,
+                ...game
+            });
+        }
+        console.log(`✅ Successfully stored ${createdGames.length} games for Week ${week_number}, ${year}`);
+        res.json({
+            message: `Successfully fetched ${createdGames.length} games for Week ${week_number}, ${year}`,
+            games_created: createdGames.length,
+            week_info: { week_number, year, week_id: weekData.id }
+        });
+    }
+    catch (error) {
+        console.error('Error fetching games for week:', error);
+        res.status(500).json({ error: 'Failed to fetch games for week' });
     }
 });
 // Fetch all season games (Weeks 1-12)

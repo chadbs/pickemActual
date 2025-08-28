@@ -7,12 +7,14 @@ import {
   useCurrentWeek, 
   useWeeklyLeaderboard,
   useCurrentUser,
-  useWeek
+  useWeek,
+  useFetchGamesForWeek
 } from '../hooks/useApi';
 
 const HomePage: React.FC = () => {
   const { currentUser } = useCurrentUser();
   const { data: currentWeek, isLoading: weekLoading } = useCurrentWeek();
+  const fetchGamesForWeekMutation = useFetchGamesForWeek();
   
   const [selectedWeekId, setSelectedWeekId] = useState<number | null>(null);
   const [showAllPicks, setShowAllPicks] = useState(false);
@@ -33,6 +35,21 @@ const HomePage: React.FC = () => {
 
   const handlePickUpdate = () => {
     refetchGames();
+  };
+
+  const handleFetchGamesForWeek = async () => {
+    if (!selectedWeekData) return;
+    
+    try {
+      const result = await fetchGamesForWeekMutation.mutateAsync({
+        year: selectedWeekData.season_year,
+        week_number: selectedWeekData.week_number,
+        week_id: selectedWeekData.id
+      });
+      alert(`✅ Fetched ${result.games_created} games for Week ${selectedWeekData.week_number}!`);
+    } catch (error) {
+      alert('Failed to fetch games. Check console for details.');
+    }
   };
 
   const formatDeadline = (deadline: string) => {
@@ -243,8 +260,47 @@ const HomePage: React.FC = () => {
         </div>
 
         {games.length === 0 ? (
-          <div className="text-center py-12 bg-gray-50 rounded-lg">
-            <p className="text-gray-600">No games available for this week yet.</p>
+          <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="mb-4">
+              <div className="text-4xl mb-2">🏈</div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                No games available for this week yet
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Week {selectedWeekData?.week_number || '?'} - {selectedWeekData?.season_year} needs games to be fetched.
+              </p>
+            </div>
+            
+            {currentUser?.is_admin && selectedWeekData && (
+              <div className="space-y-3">
+                <button
+                  onClick={handleFetchGamesForWeek}
+                  disabled={fetchGamesForWeekMutation.isPending}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
+                >
+                  {fetchGamesForWeekMutation.isPending ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Fetching Games...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🏈</span>
+                      <span>Fetch Games for Week {selectedWeekData.week_number}</span>
+                    </>
+                  )}
+                </button>
+                <div className="text-xs text-gray-500">
+                  Admin function - Fetches top 8 CFB games with spreads
+                </div>
+              </div>
+            )}
+            
+            {!currentUser?.is_admin && (
+              <p className="text-sm text-gray-500">
+                Contact an admin to fetch games for this week.
+              </p>
+            )}
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
