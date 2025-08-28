@@ -6,6 +6,55 @@ import { getNCAAFootballOdds, parseOddsData, matchOddsToGames, checkAPIUsage } f
 
 const router = express.Router();
 
+// Fallback spread estimation functions
+const getFavoriteTeam = (homeTeam: string, awayTeam: string): string => {
+  // Common powerhouse teams that are usually favored
+  const powerTeams = [
+    'Alabama', 'Georgia', 'Ohio State', 'Michigan', 'Texas', 'Oklahoma', 'LSU', 
+    'Clemson', 'Notre Dame', 'USC', 'Florida', 'Auburn', 'Tennessee', 'Oregon'
+  ];
+  
+  // Check if either team is a known powerhouse
+  const homePower = powerTeams.some(team => homeTeam.toLowerCase().includes(team.toLowerCase()));
+  const awayPower = powerTeams.some(team => awayTeam.toLowerCase().includes(team.toLowerCase()));
+  
+  if (homePower && !awayPower) return homeTeam;
+  if (awayPower && !homePower) return awayTeam;
+  
+  // Default: home team gets slight edge (home field advantage)
+  return homeTeam;
+};
+
+const getEstimatedSpread = (homeTeam: string, awayTeam: string): number => {
+  // Tier 1: Elite teams
+  const tier1Teams = ['Alabama', 'Georgia', 'Ohio State', 'Michigan', 'Texas'];
+  // Tier 2: Strong teams  
+  const tier2Teams = ['Oklahoma', 'LSU', 'Clemson', 'Notre Dame', 'USC', 'Florida', 'Auburn', 'Tennessee', 'Oregon'];
+  // Tier 3: Good teams
+  const tier3Teams = ['Wisconsin', 'Penn State', 'Utah', 'Miami', 'North Carolina', 'Virginia Tech'];
+  
+  const getTeamTier = (team: string): number => {
+    if (tier1Teams.some(t => team.toLowerCase().includes(t.toLowerCase()))) return 1;
+    if (tier2Teams.some(t => team.toLowerCase().includes(t.toLowerCase()))) return 2;  
+    if (tier3Teams.some(t => team.toLowerCase().includes(t.toLowerCase()))) return 3;
+    return 4; // Average team
+  };
+  
+  const homeTier = getTeamTier(homeTeam);
+  const awayTier = getTeamTier(awayTeam);
+  const tierDiff = awayTier - homeTier; // Positive means away team is weaker
+  
+  // Base spread calculation: stronger teams favored more
+  let spread = tierDiff * 7; // 7 points per tier difference
+  spread += 3; // Home field advantage
+  
+  // Ensure reasonable range (3.5 to 21 points)
+  spread = Math.max(3.5, Math.min(21, spread));
+  
+  // Round to nearest 0.5
+  return Math.round(spread * 2) / 2;
+};
+
 // Get admin dashboard stats
 router.get('/dashboard', async (req, res) => {
   try {
@@ -276,7 +325,25 @@ router.post('/create-games', async (req, res) => {
       console.log(`Successfully applied odds to ${gamesWithOdds.filter(g => g.spread).length} games`);
     } catch (error) {
       console.warn('Could not fetch fresh odds for selected games:', error);
-      console.log('Using existing spread data from preview (may be null)');
+      console.log('Applying fallback spread estimates...');
+      
+      // Apply fallback spreads when API fails
+      gamesWithOdds = selected_games.map(game => {
+        if (!game.spread) {
+          // Generate reasonable spread estimate based on team rankings/names
+          const favoriteTeam = getFavoriteTeam(game.home_team, game.away_team);
+          const spread = getEstimatedSpread(game.home_team, game.away_team);
+          
+          return {
+            ...game,
+            spread: spread,
+            favorite_team: favoriteTeam
+          };
+        }
+        return game;
+      });
+      
+      console.log(`Applied fallback spreads to ${gamesWithOdds.filter(g => g.spread).length} games`);
     }
     
     const createdGames = [];
