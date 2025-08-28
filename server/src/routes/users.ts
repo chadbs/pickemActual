@@ -45,13 +45,27 @@ router.post('/', async (req, res) => {
     const existingUser = await getQuery<User>('SELECT * FROM users WHERE name = ?', [name.trim()]);
     
     if (existingUser) {
+      // Check if existing user should have admin access but doesn't
+      const normalizedName = name.trim().toLowerCase();
+      const shouldBeAdmin = normalizedName === 'darren' || normalizedName === 'chad';
+      
+      if (shouldBeAdmin && !existingUser.is_admin) {
+        // Update existing user to admin
+        await runQuery('UPDATE users SET is_admin = ? WHERE id = ?', [true, existingUser.id]);
+        existingUser.is_admin = true;
+      }
+      
       return res.json(existingUser);
     }
     
+    // Check if user should have admin access (Darren or Chad)
+    const normalizedName = name.trim().toLowerCase();
+    const isAdmin = normalizedName === 'darren' || normalizedName === 'chad';
+    
     // Create new user
     const result = await runQuery(
-      'INSERT INTO users (name, email) VALUES (?, ?)',
-      [name.trim(), email?.trim() || null]
+      'INSERT INTO users (name, email, is_admin) VALUES (?, ?, ?)',
+      [name.trim(), email?.trim() || null, isAdmin]
     );
     
     const newUser: User = {
@@ -59,7 +73,7 @@ router.post('/', async (req, res) => {
       name: name.trim(),
       email: email?.trim() || undefined,
       created_at: new Date().toISOString(),
-      is_admin: false
+      is_admin: isAdmin
     };
     
     res.status(201).json(newUser);
