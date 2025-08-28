@@ -28,18 +28,21 @@ const UserSelector: React.FC = () => {
       // Set the new current user
       setCurrentUser(freshUser);
       
-      // Invalidate all user-dependent queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['games'] });
-      queryClient.invalidateQueries({ queryKey: ['picks'] });
-      queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
-      queryClient.invalidateQueries({ queryKey: ['week'] });
-      queryClient.invalidateQueries({ queryKey: ['completion'] });
+      console.log('🔄 User switched to:', freshUser.name, '- Page will refresh');
       
-      console.log('🔄 User switched to:', freshUser.name, '- All queries invalidated');
+      // Full page refresh to ensure all state is cleared
+      setTimeout(() => {
+        window.location.reload();
+      }, 100); // Small delay to ensure localStorage is updated
+      
     } catch (error) {
       console.error('Error switching user:', error);
       // Fallback to original user
       setCurrentUser(user);
+      // Still refresh on error to clear any inconsistent state
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
     }
     
     setIsOpen(false);
@@ -57,34 +60,29 @@ const UserSelector: React.FC = () => {
       // Set the new user as current
       setCurrentUser(newUser);
       
-      // Invalidate all queries since we have a new current user
-      queryClient.invalidateQueries({ queryKey: ['games'] });
-      queryClient.invalidateQueries({ queryKey: ['picks'] });
-      queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
-      queryClient.invalidateQueries({ queryKey: ['week'] });
-      queryClient.invalidateQueries({ queryKey: ['completion'] });
+      console.log('👤 New user created and selected:', newUser.name, '- Page will refresh');
       
-      console.log('👤 New user created and selected:', newUser.name);
+      // Full page refresh to show new user's clean state
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
       
-      setNewUserName('');
-      setShowAddUser(false);
-      setIsOpen(false);
     } catch (error) {
       console.error('Failed to create user:', error);
+      // Don't reload on error, let user try again
     }
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
     
-    // Invalidate all queries when logging out
-    queryClient.invalidateQueries({ queryKey: ['games'] });
-    queryClient.invalidateQueries({ queryKey: ['picks'] });
-    queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
-    queryClient.invalidateQueries({ queryKey: ['week'] });
-    queryClient.invalidateQueries({ queryKey: ['completion'] });
+    console.log('👋 User logged out - Page will refresh');
     
-    console.log('👋 User logged out - All queries invalidated');
+    // Full page refresh to clear all user state
+    setTimeout(() => {
+      window.location.reload();
+    }, 100);
+    
     setIsOpen(false);
   };
 
