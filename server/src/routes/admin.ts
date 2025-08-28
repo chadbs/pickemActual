@@ -316,6 +316,95 @@ router.get('/api-usage', async (req, res) => {
   }
 });
 
+// Create a full season of weeks (Weeks 1-15)
+router.post('/create-season-weeks', async (req, res) => {
+  try {
+    const { year } = req.body;
+    const seasonYear = year || new Date().getFullYear();
+    
+    console.log(`🗓️ ADMIN: Creating full season of weeks for ${seasonYear}...`);
+    
+    const createdWeeks = [];
+    
+    for (let weekNum = 1; weekNum <= 15; weekNum++) {
+      // Check if week already exists
+      const existingWeek = await getQuery<any>(
+        'SELECT * FROM weeks WHERE week_number = ? AND season_year = ?',
+        [weekNum, seasonYear]
+      );
+      
+      if (!existingWeek) {
+        // Calculate dates - Week 1 starts August 28th
+        const week1Start = new Date(seasonYear, 7, 28); // August 28th
+        const weekStart = new Date(week1Start);
+        weekStart.setDate(week1Start.getDate() + (weekNum - 1) * 7);
+        
+        // Deadline is Saturday 8 PM of that week
+        const deadline = new Date(weekStart);
+        deadline.setDate(weekStart.getDate() + (6 - weekStart.getDay())); // Go to Saturday
+        deadline.setHours(20, 0, 0, 0); // 8 PM
+        
+        // Current week is active, future weeks are upcoming, past weeks are completed
+        const now = new Date();
+        let status = 'upcoming';
+        let isActive = false;
+        
+        if (deadline < now) {
+          status = 'completed';
+        } else if (weekNum === getCurrentWeek().week && seasonYear === getCurrentWeek().year) {
+          status = 'active';
+          isActive = true;
+        }
+        
+        const result = await runQuery(
+          'INSERT INTO weeks (week_number, season_year, deadline, is_active, status) VALUES (?, ?, ?, ?, ?)',
+          [weekNum, seasonYear, deadline.toISOString(), isActive, status]
+        );
+        
+        createdWeeks.push({
+          id: result.lastID,
+          week_number: weekNum,
+          season_year: seasonYear,
+          deadline: deadline.toISOString(),
+          is_active: isActive,
+          status
+        });
+      }
+    }
+    
+    console.log(`✅ Created ${createdWeeks.length} weeks for ${seasonYear} season`);
+    
+    res.json({ 
+      message: `Created ${createdWeeks.length} weeks for ${seasonYear} season`,
+      weeks: createdWeeks,
+      season_year: seasonYear
+    });
+  } catch (error) {
+    console.error('Error creating season weeks:', error);
+    res.status(500).json({ error: 'Failed to create season weeks' });
+  }
+});
+
+// Get current week calculation (helper function)
+const getCurrentWeek = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const currentDate = now.getDate();
+  const currentMonth = now.getMonth();
+  
+  let week = 1;
+  
+  if (currentMonth === 7) { // August
+    week = currentDate >= 28 ? 1 : 1;
+  } else if (currentMonth >= 8) { // September or later
+    const week1Start = new Date(year, 7, 28);
+    const weeksSinceWeek1 = Math.floor((now.getTime() - week1Start.getTime()) / (7 * 24 * 60 * 60 * 1000));
+    week = Math.max(1, Math.min(15, weeksSinceWeek1 + 1));
+  }
+  
+  return { year, week };
+};
+
 // Reset app - clear all user data
 router.post('/reset-app', async (req, res) => {
   try {

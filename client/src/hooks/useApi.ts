@@ -289,6 +289,20 @@ export const useResetApp = () => {
   });
 };
 
+export const useCreateSeasonWeeks = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (year?: number) => adminApi.createSeasonWeeks(year).then(res => res.data),
+    onSuccess: () => {
+      // Invalidate weeks queries to refresh the week selector
+      queryClient.invalidateQueries({ queryKey: ['weeks'] });
+      queryClient.invalidateQueries({ queryKey: ['week'] });
+      queryClient.invalidateQueries({ queryKey: ['admin'] });
+    },
+  });
+};
+
 // ========== UTILITY HOOKS ==========
 
 export const useLocalStorage = <T>(key: string, initialValue: T) => {

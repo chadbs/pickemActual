@@ -17,6 +17,7 @@ import {
   useUpdateScores,
   useRecalculateScores,
   useResetApp,
+  useCreateSeasonWeeks,
   useCurrentUser
 } from '../hooks/useApi';
 
@@ -28,6 +29,7 @@ const AdminPage: React.FC = () => {
   const updateScoresMutation = useUpdateScores();
   const recalculateScoresMutation = useRecalculateScores();
   const resetAppMutation = useResetApp();
+  const createSeasonWeeksMutation = useCreateSeasonWeeks();
 
   // Check if user is admin
   if (!currentUser?.is_admin) {
@@ -75,6 +77,21 @@ const AdminPage: React.FC = () => {
         alert('Scores recalculated successfully!');
       } catch (error) {
         alert('Failed to recalculate scores. Check console for details.');
+      }
+    }
+  };
+
+  const handleCreateSeasonWeeks = async () => {
+    const currentYear = new Date().getFullYear();
+    const yearInput = prompt(`Create a full season of weeks (1-15).\n\nEnter year (current: ${currentYear}):`, currentYear.toString());
+    
+    if (yearInput && !isNaN(parseInt(yearInput))) {
+      const year = parseInt(yearInput);
+      try {
+        const result = await createSeasonWeeksMutation.mutateAsync(year);
+        alert(`✅ Created ${result.weeks.length} weeks for ${result.season_year} season!\n\nYou can now navigate between weeks using the week selector.`);
+      } catch (error) {
+        alert('Failed to create season weeks. Check console for details.');
       }
     }
   };
@@ -221,6 +238,29 @@ const AdminPage: React.FC = () => {
             <span>Select Matchups</span>
           </Link>
         </div>
+        
+        {/* Create Season Weeks */}
+        <div className="admin-card">
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">
+            Create Season Weeks
+          </h3>
+          <p className="text-gray-600 text-sm mb-4">
+            Create all 15 weeks (1-15) for a season to enable week navigation.
+          </p>
+          <button
+            onClick={handleCreateSeasonWeeks}
+            disabled={createSeasonWeeksMutation.isPending}
+            className="admin-button w-full flex items-center justify-center space-x-2"
+          >
+            {createSeasonWeeksMutation.isPending ? (
+              <ButtonSpinner />
+            ) : (
+              <CalendarIcon className="h-4 w-4" />
+            )}
+            <span>Create Weeks</span>
+          </button>
+        </div>
+        
         {/* Fetch Games */}
         <div className="admin-card">
           <h3 className="text-lg font-semibold text-gray-900 mb-3">

@@ -43,28 +43,37 @@ const WeekPicker: React.FC<WeekPickerProps> = ({ selectedWeek, onWeekChange, cla
       <button
         onClick={handlePrevious}
         disabled={currentIndex <= 0}
-        className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        title="Previous week"
+        className={`p-3 rounded-lg border-2 transition-all duration-200 ${
+          currentIndex <= 0 
+            ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+            : 'border-blue-300 text-blue-600 hover:border-blue-500 hover:bg-blue-50 hover:text-blue-700 shadow-sm hover:shadow-md'
+        }`}
+        title={currentIndex <= 0 ? "No previous weeks available" : "Go to previous week"}
       >
         <ChevronLeftIcon className="h-5 w-5" />
       </button>
       
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center space-x-4 px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
         <div className="text-center">
-          <div className="text-lg font-bold text-gray-900">
+          <div className="text-xl font-bold text-gray-900">
             Week {selectedWeekData?.week_number || '?'}
           </div>
           <div className="text-sm text-gray-600">
             {selectedWeekData?.season_year || new Date().getFullYear()}
           </div>
+          {sortedWeeks.length > 1 && (
+            <div className="text-xs text-gray-500 mt-1">
+              {currentIndex + 1} of {sortedWeeks.length}
+            </div>
+          )}
         </div>
         
         {currentWeek && selectedWeek !== currentWeek.id && (
           <button
             onClick={handleCurrentWeek}
-            className="px-3 py-1 text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-full transition-colors"
+            className="px-3 py-2 text-sm bg-green-100 text-green-700 hover:bg-green-200 rounded-lg transition-colors font-medium border border-green-300 hover:border-green-400"
           >
-            Current
+            Go to Current
           </button>
         )}
       </div>
@@ -72,8 +81,12 @@ const WeekPicker: React.FC<WeekPickerProps> = ({ selectedWeek, onWeekChange, cla
       <button
         onClick={handleNext}
         disabled={currentIndex >= sortedWeeks.length - 1}
-        className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        title="Next week"
+        className={`p-3 rounded-lg border-2 transition-all duration-200 ${
+          currentIndex >= sortedWeeks.length - 1
+            ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+            : 'border-blue-300 text-blue-600 hover:border-blue-500 hover:bg-blue-50 hover:text-blue-700 shadow-sm hover:shadow-md'
+        }`}
+        title={currentIndex >= sortedWeeks.length - 1 ? "No next weeks available" : "Go to next week"}
       >
         <ChevronRightIcon className="h-5 w-5" />
       </button>

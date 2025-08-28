@@ -153,6 +153,8 @@ export const adminApi = {
   
   resetApp: () => api.post<{ message: string; warning: string }>('/admin/reset-app', { confirm: 'RESET_ALL_DATA' }),
   
+  createSeasonWeeks: (year?: number) => api.post<{ message: string; weeks: any[]; season_year: number }>('/admin/create-season-weeks', { year }),
+  
   getAPIUsage: () => api.get<any>('/admin/api-usage'),
   
   maintenance: (action: string) =>
