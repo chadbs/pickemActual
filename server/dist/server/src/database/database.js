@@ -6,14 +6,29 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.closeDatabase = exports.allQuery = exports.getQuery = exports.runQuery = exports.initializeDatabase = exports.db = void 0;
 const sqlite3_1 = __importDefault(require("sqlite3"));
 const path_1 = __importDefault(require("path"));
-const DB_PATH = path_1.default.join(__dirname, '../../data/cfb_pickem.db');
+const fs_1 = __importDefault(require("fs"));
+// Use Railway-compatible database path
+const DB_PATH = process.env.RAILWAY_ENVIRONMENT
+    ? '/tmp/cfb_pickem.db' // Railway temp directory
+    : path_1.default.join(__dirname, '../../data/cfb_pickem.db'); // Local development
+// Ensure directory exists for local development
+if (!process.env.RAILWAY_ENVIRONMENT) {
+    const dbDir = path_1.default.dirname(DB_PATH);
+    if (!fs_1.default.existsSync(dbDir)) {
+        fs_1.default.mkdirSync(dbDir, { recursive: true });
+        console.log('Created database directory:', dbDir);
+    }
+}
+console.log('Using database path:', DB_PATH);
 // Create database connection
 exports.db = new sqlite3_1.default.Database(DB_PATH, (err) => {
     if (err) {
         console.error('Error opening database:', err.message);
+        console.error('Database path:', DB_PATH);
+        console.error('RAILWAY_ENVIRONMENT:', process.env.RAILWAY_ENVIRONMENT);
     }
     else {
-        console.log('Connected to SQLite database');
+        console.log('Connected to SQLite database at:', DB_PATH);
     }
 });
 // Initialize database tables

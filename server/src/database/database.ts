@@ -1,14 +1,31 @@
 import sqlite3 from 'sqlite3';
 import path from 'path';
+import fs from 'fs';
 
-const DB_PATH = path.join(__dirname, '../../data/cfb_pickem.db');
+// Use Railway-compatible database path
+const DB_PATH = process.env.RAILWAY_ENVIRONMENT 
+  ? '/tmp/cfb_pickem.db'  // Railway temp directory
+  : path.join(__dirname, '../../data/cfb_pickem.db'); // Local development
+
+// Ensure directory exists for local development
+if (!process.env.RAILWAY_ENVIRONMENT) {
+  const dbDir = path.dirname(DB_PATH);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+    console.log('Created database directory:', dbDir);
+  }
+}
+
+console.log('Using database path:', DB_PATH);
 
 // Create database connection
 export const db = new sqlite3.Database(DB_PATH, (err) => {
   if (err) {
     console.error('Error opening database:', err.message);
+    console.error('Database path:', DB_PATH);
+    console.error('RAILWAY_ENVIRONMENT:', process.env.RAILWAY_ENVIRONMENT);
   } else {
-    console.log('Connected to SQLite database');
+    console.log('Connected to SQLite database at:', DB_PATH);
   }
 });
 
