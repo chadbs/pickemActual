@@ -6,6 +6,7 @@ import {
   CheckIcon
 } from '@heroicons/react/24/outline';
 import { useUsers, useCreateUser, useCurrentUser } from '../hooks/useApi';
+import { useQueryClient } from '@tanstack/react-query';
 import type { User } from '../types';
 
 const UserSelector: React.FC = () => {
@@ -13,19 +14,34 @@ const UserSelector: React.FC = () => {
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   
-  const { data: users = [], isLoading: usersLoading } = useUsers();
+  const { data: users = [], isLoading: usersLoading, refetch: refetchUsers } = useUsers();
   const { currentUser, setCurrentUser } = useCurrentUser();
   const createUserMutation = useCreateUser();
+  const queryClient = useQueryClient();
 
-  const handleUserSelect = (user: User) => {
-    // Fetch fresh user data from API to get latest admin status
-    fetch(`http://localhost:3003/api/users`)
-      .then(res => res.json())
-      .then(users => {
-        const freshUser = users.find((u: User) => u.id === user.id);
-        setCurrentUser(freshUser || user);
-      })
-      .catch(() => setCurrentUser(user)); // fallback to original user
+  const handleUserSelect = async (user: User) => {
+    try {
+      // Refetch users to get latest admin status
+      const { data: freshUsers } = await refetchUsers();
+      const freshUser = freshUsers?.find((u: User) => u.id === user.id) || user;
+      
+      // Set the new current user
+      setCurrentUser(freshUser);
+      
+      // Invalidate all user-dependent queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['games'] });
+      queryClient.invalidateQueries({ queryKey: ['picks'] });
+      queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+      queryClient.invalidateQueries({ queryKey: ['week'] });
+      queryClient.invalidateQueries({ queryKey: ['completion'] });
+      
+      console.log('🔄 User switched to:', freshUser.name, '- All queries invalidated');
+    } catch (error) {
+      console.error('Error switching user:', error);
+      // Fallback to original user
+      setCurrentUser(user);
+    }
+    
     setIsOpen(false);
   };
 
@@ -38,7 +54,18 @@ const UserSelector: React.FC = () => {
         name: newUserName.trim() 
       });
       
+      // Set the new user as current
       setCurrentUser(newUser);
+      
+      // Invalidate all queries since we have a new current user
+      queryClient.invalidateQueries({ queryKey: ['games'] });
+      queryClient.invalidateQueries({ queryKey: ['picks'] });
+      queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+      queryClient.invalidateQueries({ queryKey: ['week'] });
+      queryClient.invalidateQueries({ queryKey: ['completion'] });
+      
+      console.log('👤 New user created and selected:', newUser.name);
+      
       setNewUserName('');
       setShowAddUser(false);
       setIsOpen(false);
@@ -49,6 +76,15 @@ const UserSelector: React.FC = () => {
 
   const handleLogout = () => {
     setCurrentUser(null);
+    
+    // Invalidate all queries when logging out
+    queryClient.invalidateQueries({ queryKey: ['games'] });
+    queryClient.invalidateQueries({ queryKey: ['picks'] });
+    queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+    queryClient.invalidateQueries({ queryKey: ['week'] });
+    queryClient.invalidateQueries({ queryKey: ['completion'] });
+    
+    console.log('👋 User logged out - All queries invalidated');
     setIsOpen(false);
   };
 
