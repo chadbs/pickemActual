@@ -270,10 +270,28 @@ router.post('/create-games', async (req, res) => {
     let gamesWithOdds = selected_games;
     try {
       console.log('Attempting to fetch fresh odds for selected games...');
+      console.log('Sample selected game:', JSON.stringify(selected_games[0], null, 2));
+      
       const rawOdds = await getNCAAFootballOdds();
+      console.log(`Fetched ${rawOdds.length} odds from API`);
+      if (rawOdds.length > 0) {
+        console.log('Sample raw odds:', JSON.stringify(rawOdds[0], null, 2));
+      }
+      
       const parsedOdds = parseOddsData(rawOdds);
+      console.log(`Parsed ${parsedOdds.length} odds`);
+      if (parsedOdds.length > 0) {
+        console.log('Sample parsed odds:', JSON.stringify(parsedOdds[0], null, 2));
+      }
+      
       gamesWithOdds = matchOddsToGames(selected_games, parsedOdds);
       console.log(`Successfully applied odds to ${gamesWithOdds.filter(g => g.spread).length} games`);
+      
+      // Log first game with/without spread for debugging
+      if (gamesWithOdds.length > 0) {
+        const firstGame = gamesWithOdds[0];
+        console.log(`First matched game: ${firstGame.away_team} @ ${firstGame.home_team}, spread: ${firstGame.spread}, favorite: ${firstGame.favorite_team}`);
+      }
     } catch (error) {
       console.warn('Could not fetch fresh odds for selected games:', error);
       console.log('Using existing spread data from preview (may be null)');
