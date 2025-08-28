@@ -8,7 +8,8 @@ import {
   ClockIcon,
   UsersIcon,
   EyeIcon,
-  EyeSlashIcon
+  EyeSlashIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 
 import GameCard from '../components/GameCard';
@@ -19,13 +20,15 @@ import {
   useCurrentWeek, 
   useCurrentUser,
   usePickCompletion,
-  useWeek
+  useWeek,
+  useFetchSpreads
 } from '../hooks/useApi';
 
 const PicksPage: React.FC = () => {
   const [showAllGames, setShowAllGames] = useState(false);
   const { currentUser } = useCurrentUser();
   const { data: currentWeek, isLoading: weekLoading } = useCurrentWeek();
+  const fetchSpreadsMutation = useFetchSpreads();
   
   const [selectedWeekId, setSelectedWeekId] = useState<number | null>(null);
   
@@ -48,6 +51,15 @@ const PicksPage: React.FC = () => {
 
   const handlePickUpdate = () => {
     refetchGames();
+  };
+
+  const handleFetchSpreads = async () => {
+    try {
+      await fetchSpreadsMutation.mutateAsync();
+      // Games will auto-refresh due to cache invalidation in the hook
+    } catch (error) {
+      console.error('Failed to fetch spreads:', error);
+    }
   };
 
   // Filter games based on view preference
@@ -198,6 +210,14 @@ const PicksPage: React.FC = () => {
         </div>
         
         <div className="flex items-center space-x-3">
+          <button
+            onClick={handleFetchSpreads}
+            disabled={fetchSpreadsMutation.isPending}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors duration-200"
+          >
+            <ArrowPathIcon className={`h-4 w-4 ${fetchSpreadsMutation.isPending ? 'animate-spin' : ''}`} />
+            <span>{fetchSpreadsMutation.isPending ? 'Fetching...' : 'Fetch Spreads'}</span>
+          </button>
           <button
             onClick={() => setShowAllGames(!showAllGames)}
             className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors duration-200"

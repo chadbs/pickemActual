@@ -220,6 +220,58 @@ router.post('/update-scores', async (req, res) => {
   }
 });
 
+// Fetch fresh spreads for current week games
+router.post('/fetch-spreads', async (req, res) => {
+  try {
+    console.log('Manual spread fetch requested...');
+    
+    // Get current week games
+    const currentWeek = await getQuery<any>('SELECT * FROM weeks WHERE is_active = 1 LIMIT 1');
+    if (!currentWeek) {
+      return res.status(404).json({ error: 'No active week found' });
+    }
+    
+    const games = await allQuery<any>('SELECT * FROM games WHERE week_id = ?', [currentWeek.id]);
+    if (games.length === 0) {
+      return res.status(404).json({ error: 'No games found for current week' });
+    }
+    
+    console.log(`Found ${games.length} games for Week ${currentWeek.week_number}`);
+    
+    // Fetch fresh odds
+    const rawOdds = await getNCAAFootballOdds();
+    console.log(`Fetched ${rawOdds.length} odds from API`);
+    
+    const parsedOdds = parseOddsData(rawOdds);
+    console.log(`Parsed ${parsedOdds.length} odds`);
+    
+    // Match odds to existing games
+    const gamesWithOdds = matchOddsToGames(games, parsedOdds);
+    let updatedCount = 0;
+    
+    // Update database with new spreads
+    for (const game of gamesWithOdds) {
+      if (game.spread && game.favorite_team) {
+        await runQuery(
+          'UPDATE games SET spread = ?, favorite_team = ? WHERE id = ?',
+          [game.spread, game.favorite_team, game.id]
+        );
+        updatedCount++;
+        console.log(`Updated spreads for ${game.away_team} @ ${game.home_team}: ${game.favorite_team} -${game.spread}`);
+      }
+    }
+    
+    res.json({ 
+      message: `Successfully updated spreads for ${updatedCount} out of ${games.length} games`,
+      updated: updatedCount,
+      total: games.length
+    });
+  } catch (error) {
+    console.error('Error fetching spreads:', error);
+    res.status(500).json({ error: 'Failed to fetch spreads' });
+  }
+});
+
 // Preview available games for a week
 router.get('/preview-games/:year/:week', async (req, res) => {
   try {

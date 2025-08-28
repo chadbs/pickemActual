@@ -253,6 +253,27 @@ export const useUpdateScores = () => {
   });
 };
 
+export const useFetchSpreads = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: () => adminApi.fetchSpreads().then(res => res.data),
+    onSuccess: () => {
+      // Invalidate all game-related queries to refresh spread data
+      queryClient.invalidateQueries({ queryKey: ['games'] });
+      queryClient.invalidateQueries({ queryKey: ['game'] });
+      queryClient.invalidateQueries({ queryKey: ['currentWeekData'] });
+      
+      // Force refetch of current games
+      queryClient.refetchQueries({ 
+        predicate: (query) => {
+          return query.queryKey[0] === 'games' || query.queryKey[0] === 'currentWeekData';
+        }
+      });
+    },
+  });
+};
+
 export const usePreviewGames = (year: number, week: number) => {
   return useQuery({
     queryKey: ['admin', 'preview', year, week],

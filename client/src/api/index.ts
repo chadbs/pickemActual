@@ -146,6 +146,8 @@ export const adminApi = {
   
   updateScores: () => api.post<{ message: string }>('/admin/update-scores'),
   
+  fetchSpreads: () => api.post<{ message: string; updated: number; total: number }>('/admin/fetch-spreads'),
+  
   previewGames: (year: number, week: number) =>
     api.get<any>(`/admin/preview-games/${year}/${week}`),
   
