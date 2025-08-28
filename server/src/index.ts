@@ -27,9 +27,30 @@ app.use(express.json());
 // Serve static files in production
 const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT;
 if (isProduction) {
-  const clientDistPath = path.join(__dirname, '../../client/dist');
-  console.log('Serving static files from:', clientDistPath);
-  app.use(express.static(clientDistPath));
+  // Try multiple possible paths for client dist
+  const possiblePaths = [
+    path.join(__dirname, '../../client/dist'),           // From server/dist/server/src
+    path.join(__dirname, '../../../client/dist'),        // Alternative path
+    path.join(process.cwd(), 'client/dist'),             // From project root
+    '/app/client/dist'                                   // Railway absolute path
+  ];
+  
+  let clientDistPath = '';
+  for (const testPath of possiblePaths) {
+    if (fs.existsSync(testPath)) {
+      clientDistPath = testPath;
+      break;
+    }
+  }
+  
+  if (clientDistPath && fs.existsSync(path.join(clientDistPath, 'index.html'))) {
+    console.log('Serving static files from:', clientDistPath);
+    app.use(express.static(clientDistPath));
+  } else {
+    console.error('Could not find client dist directory. Tried paths:', possiblePaths);
+    console.error('Current directory:', process.cwd());
+    console.error('__dirname:', __dirname);
+  }
 }
 
 // Create data directory if it doesn't exist
@@ -71,9 +92,30 @@ if (isProduction) {
     if (req.path.startsWith('/api')) {
       return res.status(404).json({ error: 'API route not found' });
     }
-    const indexPath = path.join(__dirname, '../../client/dist/index.html');
-    console.log('Serving index.html from:', indexPath);
-    res.sendFile(indexPath);
+    
+    // Try multiple possible paths for index.html
+    const possibleIndexPaths = [
+      path.join(__dirname, '../../client/dist/index.html'),
+      path.join(__dirname, '../../../client/dist/index.html'),
+      path.join(process.cwd(), 'client/dist/index.html'),
+      '/app/client/dist/index.html'
+    ];
+    
+    let indexPath = '';
+    for (const testPath of possibleIndexPaths) {
+      if (fs.existsSync(testPath)) {
+        indexPath = testPath;
+        break;
+      }
+    }
+    
+    if (indexPath) {
+      console.log('Serving index.html from:', indexPath);
+      res.sendFile(indexPath);
+    } else {
+      console.error('Could not find index.html. Tried paths:', possibleIndexPaths);
+      res.status(404).send('Application not found');
+    }
   });
 } else {
   // 404 handler for development
