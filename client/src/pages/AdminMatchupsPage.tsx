@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeftIcon, ChevronRightIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { useCreateGames, useWeeks } from '../hooks/useApi';
 
 interface Game {
   id: number;
@@ -20,12 +21,15 @@ interface Week {
 }
 
 const AdminMatchupsPage: React.FC = () => {
-  const [weeks, setWeeks] = useState<Week[]>([]);
   const [selectedWeekId, setSelectedWeekId] = useState<number | null>(null);
   const [availableGames, setAvailableGames] = useState<Game[]>([]);
   const [selectedGames, setSelectedGames] = useState<Set<number>>(new Set());
   const [currentGames, setCurrentGames] = useState<Game[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [fetchLoading, setFetchLoading] = useState(false);
+  
+  // Use React Query hooks
+  const { data: weeks = [] } = useWeeks(2025);
+  const createGamesMutation = useCreateGames();
   
   // Fetch weeks on load
   useEffect(() => {
@@ -65,14 +69,14 @@ const AdminMatchupsPage: React.FC = () => {
     if (!selectedWeek) return;
     
     try {
-      setLoading(true);
+      setFetchLoading(true);
       const response = await fetch(`http://localhost:3003/api/admin/preview-games/${selectedWeek.season_year}/${selectedWeek.week_number}`);
       const data = await response.json();
       setAvailableGames(data.games || []);
     } catch (error) {
       console.error('Error fetching available games:', error);
     } finally {
-      setLoading(false);
+      setFetchLoading(false);
     }
   };
   
@@ -107,31 +111,17 @@ const AdminMatchupsPage: React.FC = () => {
     const selectedGameData = availableGames.filter(game => selectedGames.has(game.id));
     
     try {
-      setLoading(true);
-      const response = await fetch('http://localhost:3003/api/admin/create-games', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          week_id: selectedWeekId,
-          selected_games: selectedGameData
-        })
+      await createGamesMutation.mutateAsync({
+        week_id: selectedWeekId!,
+        selected_games: selectedGameData
       });
       
-      const result = await response.json();
-      if (response.ok) {
-        alert('Matchups saved successfully!');
-        setSelectedGames(new Set());
-        fetchCurrentGames(); // Refresh current games
-      } else {
-        alert('Error: ' + result.error);
-      }
+      alert('Matchups saved successfully! The main page will now show the updated games.');
+      setSelectedGames(new Set());
+      fetchCurrentGames(); // Refresh current games display
     } catch (error) {
       console.error('Error saving matchups:', error);
       alert('Error saving matchups');
-    } finally {
-      setLoading(false);
     }
   };
   
@@ -251,15 +241,15 @@ const AdminMatchupsPage: React.FC = () => {
             </span>
             <button
               onClick={saveMatchups}
-              disabled={selectedGames.size !== 8 || loading}
+              disabled={selectedGames.size !== 8 || createGamesMutation.isPending}
               className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium transition-colors"
             >
-              {loading ? 'Saving...' : 'Save Matchups'}
+              {createGamesMutation.isPending ? 'Saving...' : 'Save Matchups'}
             </button>
           </div>
         </div>
         
-        {loading ? (
+        {fetchLoading ? (
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
             <p className="mt-2 text-gray-600">Loading games...</p>

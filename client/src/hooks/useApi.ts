@@ -268,8 +268,23 @@ export const useCreateGames = () => {
     mutationFn: (data: { week_id: number; selected_games: any[] }) =>
       adminApi.createGames(data).then(res => res.data),
     onSuccess: () => {
+      // Invalidate all game-related queries to ensure fresh data
       queryClient.invalidateQueries({ queryKey: ['games'] });
+      queryClient.invalidateQueries({ queryKey: ['game'] });
+      queryClient.invalidateQueries({ queryKey: ['week'] });
+      queryClient.invalidateQueries({ queryKey: ['picks'] });
+      queryClient.invalidateQueries({ queryKey: ['pickCompletion'] });
       queryClient.invalidateQueries({ queryKey: ['admin'] });
+      queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+      
+      // Force refetch of all game queries (including week-specific ones)
+      queryClient.refetchQueries({ 
+        predicate: (query) => {
+          return query.queryKey[0] === 'games' || 
+                 query.queryKey[0] === 'game' || 
+                 query.queryKey[0] === 'week';
+        }
+      });
     },
   });
 };
