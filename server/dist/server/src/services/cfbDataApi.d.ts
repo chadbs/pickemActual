@@ -50,6 +50,6 @@ export declare const getGamesForWeek: (year: number, week: number) => Promise<CF
 export declare const getTeams: (year: number) => Promise<CFBDTeam[]>;
 export declare const getRankings: (year: number, week: number) => Promise<CFBDRanking[]>;
 export declare const getGameScores: (year: number, week: number) => Promise<CFBDGameResponse[]>;
-export declare const isFavoriteTeam: (teamName: string) => boolean;
+export declare const isFavoriteTeam: (teamName: string | null | undefined) => boolean;
 export declare const getTopGamesForWeek: (year: number, week: number) => Promise<CFBDGameResponse[]>;
 //# sourceMappingURL=cfbDataApi.d.ts.map

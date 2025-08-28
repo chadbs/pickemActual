@@ -141,8 +141,9 @@ export const getGameScores = async (year: number, week: number): Promise<CFBDGam
 };
 
 // Check if a team is one of our favorite teams
-export const isFavoriteTeam = (teamName: string): boolean => {
-  if (!teamName) return false;
+export const isFavoriteTeam = (teamName: string | null | undefined): boolean => {
+  // Robust null checking for Railway environment
+  if (!teamName || typeof teamName !== 'string') return false;
   
   const normalizedTeamName = teamName.toLowerCase().trim();
   

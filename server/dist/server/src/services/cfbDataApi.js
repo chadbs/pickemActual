@@ -94,7 +94,8 @@ const getGameScores = async (year, week) => {
 exports.getGameScores = getGameScores;
 // Check if a team is one of our favorite teams
 const isFavoriteTeam = (teamName) => {
-    if (!teamName)
+    // Robust null checking for Railway environment
+    if (!teamName || typeof teamName !== 'string')
         return false;
     const normalizedTeamName = teamName.toLowerCase().trim();
     // Exact matches for our favorite teams
