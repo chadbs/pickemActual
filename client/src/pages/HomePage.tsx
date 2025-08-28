@@ -8,13 +8,15 @@ import {
   useWeeklyLeaderboard,
   useCurrentUser,
   useWeek,
-  useFetchGamesForWeek
+  useFetchGamesForWeek,
+  useFetchSpreads
 } from '../hooks/useApi';
 
 const HomePage: React.FC = () => {
   const { currentUser } = useCurrentUser();
   const { data: currentWeek, isLoading: weekLoading } = useCurrentWeek();
   const fetchGamesForWeekMutation = useFetchGamesForWeek();
+  const fetchSpreadsMutation = useFetchSpreads();
   
   const [selectedWeekId, setSelectedWeekId] = useState<number | null>(null);
   const [showAllPicks, setShowAllPicks] = useState(false);
@@ -35,6 +37,16 @@ const HomePage: React.FC = () => {
 
   const handlePickUpdate = () => {
     refetchGames();
+  };
+
+  const handleFetchSpreads = async () => {
+    try {
+      const result = await fetchSpreadsMutation.mutateAsync();
+      alert(`✅ Updated spreads for ${result.updated} out of ${result.total} games!`);
+    } catch (error) {
+      console.error('Failed to fetch spreads:', error);
+      alert('❌ Failed to fetch spreads. Check console for details.');
+    }
   };
 
   const handleFetchGamesForWeek = async () => {
@@ -245,6 +257,13 @@ const HomePage: React.FC = () => {
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-gray-900">This Week's Games</h2>
           <div className="flex items-center space-x-4">
+            <button
+              onClick={handleFetchSpreads}
+              disabled={fetchSpreadsMutation.isPending}
+              className="px-3 py-1 text-sm rounded-full border-2 transition-all bg-blue-600 text-white border-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed"
+            >
+              🔄 {fetchSpreadsMutation.isPending ? 'Fetching...' : 'Fetch Spreads'}
+            </button>
             <button
               onClick={() => setShowAllPicks(!showAllPicks)}
               className={`px-3 py-1 text-sm rounded-full border-2 transition-all ${
