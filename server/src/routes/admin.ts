@@ -251,13 +251,16 @@ router.post('/fetch-spreads', async (req, res) => {
     
     // Update database with new spreads
     for (const game of gamesWithOdds) {
+      console.log(`Checking game ${game.away_team} @ ${game.home_team}: spread=${game.spread}, favorite=${game.favorite_team}`);
       if (game.spread && game.favorite_team) {
         await runQuery(
           'UPDATE games SET spread = ?, favorite_team = ? WHERE id = ?',
           [game.spread, game.favorite_team, game.id]
         );
         updatedCount++;
-        console.log(`Updated spreads for ${game.away_team} @ ${game.home_team}: ${game.favorite_team} -${game.spread}`);
+        console.log(`✅ Updated spreads for ${game.away_team} @ ${game.home_team}: ${game.favorite_team} -${game.spread}`);
+      } else {
+        console.log(`❌ No spread data for ${game.away_team} @ ${game.home_team}`);
       }
     }
     

@@ -41,6 +41,18 @@ const PicksPage: React.FC = () => {
   
   const { data: selectedWeekData } = useWeek(selectedWeekId || 0);
   const { data: games = [], isLoading: gamesLoading, refetch: refetchGames } = useWeekGames(selectedWeekId || 0, currentUser?.id);
+  
+  // Debug logging for games data
+  useEffect(() => {
+    if (games.length > 0) {
+      console.log('Current games data:', games);
+      console.log('Sample game spread info:', {
+        game: games[0]?.away_team + ' @ ' + games[0]?.home_team,
+        spread: games[0]?.spread,
+        favorite_team: games[0]?.favorite_team
+      });
+    }
+  }, [games]);
   const { data: completion, isLoading: completionLoading } = usePickCompletion(
     currentUser?.id || 0,
     { 
@@ -55,10 +67,14 @@ const PicksPage: React.FC = () => {
 
   const handleFetchSpreads = async () => {
     try {
-      await fetchSpreadsMutation.mutateAsync();
+      console.log('Starting fetch spreads...');
+      const result = await fetchSpreadsMutation.mutateAsync();
+      console.log('Fetch spreads result:', result);
+      alert(`✅ Updated spreads for ${result.updated} out of ${result.total} games!`);
       // Games will auto-refresh due to cache invalidation in the hook
     } catch (error) {
       console.error('Failed to fetch spreads:', error);
+      alert('❌ Failed to fetch spreads. Check console for details.');
     }
   };
 
