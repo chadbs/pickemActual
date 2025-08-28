@@ -209,17 +209,6 @@ router.delete('/seasons/:year', async (req, res) => {
   }
 });
 
-// Manually trigger score updates
-router.post('/update-scores', async (req, res) => {
-  try {
-    await updateGameScores();
-    res.json({ message: 'Scores updated successfully' });
-  } catch (error) {
-    console.error('Error manually updating scores:', error);
-    res.status(500).json({ error: 'Failed to update scores' });
-  }
-});
-
 // Fetch fresh spreads for current week games
 router.post('/fetch-spreads', async (req, res) => {
   try {
@@ -272,6 +261,17 @@ router.post('/fetch-spreads', async (req, res) => {
   } catch (error) {
     console.error('Error fetching spreads:', error);
     res.status(500).json({ error: 'Failed to fetch spreads' });
+  }
+});
+
+// Manually trigger score updates
+router.post('/update-scores', async (req, res) => {
+  try {
+    await updateGameScores();
+    res.json({ message: 'Scores updated successfully' });
+  } catch (error) {
+    console.error('Error manually updating scores:', error);
+    res.status(500).json({ error: 'Failed to update scores' });
   }
 });
 
