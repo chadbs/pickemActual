@@ -266,9 +266,22 @@ router.post('/create-games', async (req, res) => {
     await runQuery('DELETE FROM games WHERE week_id = ?', [week_id]);
     console.log(`Cleared existing games for Week ${week.week_number}`);
     
+    // Try to fetch fresh odds for the selected games
+    let gamesWithOdds = selected_games;
+    try {
+      console.log('Attempting to fetch fresh odds for selected games...');
+      const rawOdds = await getNCAAFootballOdds();
+      const parsedOdds = parseOddsData(rawOdds);
+      gamesWithOdds = matchOddsToGames(selected_games, parsedOdds);
+      console.log(`Successfully applied odds to ${gamesWithOdds.filter(g => g.spread).length} games`);
+    } catch (error) {
+      console.warn('Could not fetch fresh odds for selected games:', error);
+      console.log('Using existing spread data from preview (may be null)');
+    }
+    
     const createdGames = [];
     
-    for (const game of selected_games.slice(0, 8)) { // Max 8 games
+    for (const game of gamesWithOdds.slice(0, 8)) { // Max 8 games
       const isFavoriteGame = [game.home_team, game.away_team].some(team =>
         ['Colorado', 'Colorado State', 'Nebraska', 'Michigan'].some(fav =>
           team.toLowerCase().includes(fav.toLowerCase())
