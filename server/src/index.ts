@@ -13,7 +13,7 @@ import userRoutes from './routes/users';
 // import pickRoutes from './routes/picks';
 // import weekRoutes from './routes/weeks';
 // import leaderboardRoutes from './routes/leaderboard';
-import adminRoutes from './routes/admin-minimal';
+// import adminRoutes from './routes/admin-minimal';
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
@@ -65,7 +65,23 @@ app.use('/api/users', userRoutes);
 // app.use('/api/picks', pickRoutes);
 // app.use('/api/weeks', weekRoutes);
 // app.use('/api/leaderboard', leaderboardRoutes);
-app.use('/api/admin', adminRoutes);
+
+// Admin routes directly in index.ts to eliminate import issues
+app.get('/api/admin/test', (req, res) => {
+  res.json({ message: 'Direct admin test route working!', timestamp: new Date().toISOString() });
+});
+
+app.post('/api/admin/fetch-spreads', async (req, res) => {
+  console.log('🚀 DIRECT FETCH SPREADS ENDPOINT HIT!');
+  res.json({ 
+    message: 'Direct fetch spreads endpoint is working!',
+    updated: 0,
+    total: 0,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// app.use('/api/admin', adminRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
