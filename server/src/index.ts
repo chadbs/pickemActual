@@ -9,11 +9,11 @@ import { startScheduler } from './services/scheduler';
 
 // Import routes
 import userRoutes from './routes/users';
-// import gameRoutes from './routes/games';
-// import pickRoutes from './routes/picks';
-// import weekRoutes from './routes/weeks';
-// import leaderboardRoutes from './routes/leaderboard';
-// import adminRoutes from './routes/admin-minimal';
+import gameRoutes from './routes/games';
+import pickRoutes from './routes/picks';
+import weekRoutes from './routes/weeks';
+import leaderboardRoutes from './routes/leaderboard';
+import adminRoutes from './routes/admin';
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
@@ -59,36 +59,13 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-// Test admin route at same level as users to debug routing
-app.get('/api/admin-direct-test', (req, res) => {
-  console.log('🚀 ADMIN DIRECT TEST HIT!');
-  res.json({ message: 'Admin direct test working!', timestamp: new Date().toISOString() });
-});
-
 // Routes
 app.use('/api/users', userRoutes);
-// app.use('/api/games', gameRoutes);
-// app.use('/api/picks', pickRoutes);
-// app.use('/api/weeks', weekRoutes);
-// app.use('/api/leaderboard', leaderboardRoutes);
-
-// Admin routes directly in index.ts to eliminate import issues
-app.get('/api/admin/test', (req, res) => {
-  console.log('🚀 ADMIN TEST HIT!');
-  res.json({ message: 'Direct admin test route working!', timestamp: new Date().toISOString() });
-});
-
-app.post('/api/admin/fetch-spreads', async (req, res) => {
-  console.log('🚀 DIRECT FETCH SPREADS ENDPOINT HIT!');
-  res.json({ 
-    message: 'Direct fetch spreads endpoint is working!',
-    updated: 0,
-    total: 0,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// app.use('/api/admin', adminRoutes);
+app.use('/api/games', gameRoutes);
+app.use('/api/picks', pickRoutes);
+app.use('/api/weeks', weekRoutes);
+app.use('/api/leaderboard', leaderboardRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

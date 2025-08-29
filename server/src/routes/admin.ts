@@ -6,9 +6,15 @@ import { getNCAAFootballOdds, parseOddsData, matchOddsToGames, checkAPIUsage } f
 
 const router = express.Router();
 
-// Test route to verify admin routes are working
-router.get('/test', (req, res) => {
-  res.json({ message: 'Admin routes are working!', timestamp: new Date().toISOString() });
+// Fetch fresh spreads for current week games
+router.post('/fetch-spreads', async (req, res) => {
+  console.log('🚀 FETCH SPREADS ENDPOINT HIT!');
+  res.json({ 
+    message: 'Fetch spreads endpoint is working!',
+    updated: 0,
+    total: 0,
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Get admin dashboard stats
