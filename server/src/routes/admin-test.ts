@@ -2,6 +2,7 @@ import express from 'express';
 import { runQuery, getQuery, allQuery } from '../database/database';
 import { getTopGamesForWeek } from '../services/cfbDataApi';
 import { getNCAAFootballOdds, parseOddsData, matchOddsToGames } from '../services/oddsApi';
+import { fetchWeeklyGames, updateGameScores, fetchAllSeasonGames } from '../services/scheduler';
 
 const router = express.Router();
 
@@ -209,6 +210,120 @@ router.post('/create-games', async (req, res) => {
   } catch (error) {
     console.error('Error creating games:', error);
     res.status(500).json({ error: 'Failed to create games' });
+  }
+});
+
+// Manually trigger game fetch for current week
+router.post('/fetch-games', async (req, res) => {
+  try {
+    console.log('🎯 Manual fetch games triggered');
+    await fetchWeeklyGames(true); // Force refresh when called manually
+    res.json({ message: 'Games fetched successfully' });
+  } catch (error) {
+    console.error('Error manually fetching games:', error);
+    res.status(500).json({ error: 'Failed to fetch games' });
+  }
+});
+
+// Fetch games for a specific week
+router.post('/fetch-games-for-week', async (req, res) => {
+  try {
+    const { week_id, year, week_number } = req.body;
+    
+    if (!year || !week_number) {
+      return res.status(400).json({ error: 'Year and week_number are required' });
+    }
+
+    console.log(`🎯 Fetch games for week ${week_number} of ${year}`);
+    
+    let weekData;
+    if (week_id) {
+      weekData = await getQuery<any>('SELECT * FROM weeks WHERE id = ?', [week_id]);
+    } else {
+      weekData = await getQuery<any>('SELECT * FROM weeks WHERE season_year = ? AND week_number = ?', [year, week_number]);
+    }
+    
+    if (!weekData) {
+      return res.status(404).json({ error: 'Week not found' });
+    }
+    
+    // Fetch games for the specific week
+    const games = await getTopGamesForWeek(year, week_number);
+    
+    res.json({
+      message: `Successfully fetched ${games.length} games for week ${week_number}`,
+      games_created: games.length,
+      week_info: weekData
+    });
+  } catch (error) {
+    console.error('Error fetching games for week:', error);
+    res.status(500).json({ error: 'Failed to fetch games for week' });
+  }
+});
+
+// Manually trigger score updates
+router.post('/update-scores', async (req, res) => {
+  try {
+    console.log('🎯 Manual score update triggered');
+    await updateGameScores();
+    res.json({ message: 'Scores updated successfully' });
+  } catch (error) {
+    console.error('Error manually updating scores:', error);
+    res.status(500).json({ error: 'Failed to update scores' });
+  }
+});
+
+// Create a full season of weeks (Weeks 1-15)
+router.post('/create-season-weeks', async (req, res) => {
+  try {
+    const { year } = req.body;
+    const seasonYear = year || 2025;
+    
+    console.log(`🗓️ ADMIN: Creating full season of weeks for ${seasonYear}...`);
+    
+    const createdWeeks = [];
+    
+    for (let weekNum = 1; weekNum <= 15; weekNum++) {
+      // Check if week already exists
+      const existingWeek = await getQuery<any>(
+        'SELECT * FROM weeks WHERE week_number = ? AND season_year = ?',
+        [weekNum, seasonYear]
+      );
+      
+      if (!existingWeek) {
+        // Calculate dates - Week 1 starts August 28th
+        const week1Start = new Date(seasonYear, 7, 28); // August 28th
+        const weekStart = new Date(week1Start);
+        weekStart.setDate(weekStart.getDate() + ((weekNum - 1) * 7));
+        
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+
+        const result = await runQuery(
+          `INSERT INTO weeks (week_number, season_year, start_date, end_date, is_active, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+          [
+            weekNum,
+            seasonYear,
+            weekStart.toISOString(),
+            weekEnd.toISOString(),
+            weekNum === 1 ? 1 : 0 // Make week 1 active by default
+          ]
+        );
+
+        const newWeek = await getQuery<any>('SELECT * FROM weeks WHERE id = ?', [result.lastID]);
+        createdWeeks.push(newWeek);
+      }
+    }
+    
+    res.json({
+      message: `Successfully created ${createdWeeks.length} weeks for ${seasonYear} season`,
+      weeks: createdWeeks,
+      season_year: seasonYear
+    });
+  } catch (error) {
+    console.error('Error creating season weeks:', error);
+    res.status(500).json({ error: 'Failed to create season weeks' });
   }
 });
 
