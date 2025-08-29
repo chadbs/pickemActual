@@ -300,13 +300,12 @@ router.post('/create-season-weeks', async (req, res) => {
         weekEnd.setDate(weekEnd.getDate() + 6);
 
         const result = await runQuery(
-          `INSERT INTO weeks (week_number, season_year, start_date, end_date, is_active, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+          `INSERT INTO weeks (week_number, season_year, deadline, is_active)
+           VALUES (?, ?, ?, ?)`,
           [
             weekNum,
             seasonYear,
-            weekStart.toISOString(),
-            weekEnd.toISOString(),
+            weekEnd.toISOString(), // Use week end as deadline
             weekNum === 1 ? 1 : 0 // Make week 1 active by default
           ]
         );
