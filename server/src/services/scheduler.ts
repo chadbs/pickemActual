@@ -304,19 +304,42 @@ export const updateGameScores = async (): Promise<void> => {
   try {
     console.log('Starting score updates...');
     
-    const { year, week } = getCurrentWeek();
+    const { year } = getCurrentWeek();
     
-    // Get completed games from CFBD API
-    const completedGames = await getGameScores(year, week);
+    // Check multiple weeks for completed games (current and recent weeks)
+    let allCompletedGames: any[] = [];
+    for (let weekOffset = 0; weekOffset <= 4; weekOffset++) {
+      try {
+        const targetWeek = Math.max(1, getCurrentWeek().week - weekOffset);
+        console.log(`Checking Week ${targetWeek} for completed games...`);
+        const weekCompletedGames = await getGameScores(year, targetWeek);
+        allCompletedGames = allCompletedGames.concat(weekCompletedGames);
+        console.log(`Found ${weekCompletedGames.length} completed games in Week ${targetWeek}`);
+      } catch (error) {
+        console.warn(`Could not fetch scores for week ${getCurrentWeek().week - weekOffset}:`, error);
+      }
+    }
     
-    for (const game of completedGames) {
-      // Find corresponding game in our database
+    console.log(`Processing ${allCompletedGames.length} total completed games across all weeks`);
+    
+    for (const game of allCompletedGames) {
+      // Find corresponding game in our database with flexible team name matching
       const dbGame = await getQuery<Game>(
-        'SELECT * FROM games WHERE external_game_id = ? OR (home_team = ? AND away_team = ?)',
-        [game.id?.toString(), game.home_team, game.away_team]
+        `SELECT * FROM games WHERE external_game_id = ? 
+         OR (LOWER(home_team) LIKE ? AND LOWER(away_team) LIKE ?)
+         OR (LOWER(away_team) LIKE ? AND LOWER(home_team) LIKE ?)`,
+        [
+          game.id?.toString(), 
+          `%${game.home_team?.toLowerCase().split(' ')[0]}%`,
+          `%${game.away_team?.toLowerCase().split(' ')[0]}%`,
+          `%${game.home_team?.toLowerCase().split(' ')[0]}%`, 
+          `%${game.away_team?.toLowerCase().split(' ')[0]}%`
+        ]
       );
       
       if (dbGame) {
+        console.log(`Found database match for ${game.home_team} vs ${game.away_team} (Score: ${game.home_points}-${game.away_points})`);
+        
         // Calculate spread winner
         let spreadWinner: string | null = null;
         if (game.home_points !== undefined && game.away_points !== undefined && dbGame.spread) {
@@ -342,7 +365,9 @@ export const updateGameScores = async (): Promise<void> => {
           [game.home_points || null, game.away_points || null, spreadWinner, dbGame.id]
         );
         
-        console.log(`Updated score for ${game.home_team} vs ${game.away_team}`);
+        console.log(`✅ Updated score for ${game.home_team} vs ${game.away_team}: ${game.home_points}-${game.away_points}`);
+      } else {
+        console.log(`❌ No database match found for ${game.home_team} vs ${game.away_team}`);
       }
     }
     

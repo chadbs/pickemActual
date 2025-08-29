@@ -236,13 +236,35 @@ exports.fetchWeeklyGames = fetchWeeklyGames;
 const updateGameScores = async () => {
     try {
         console.log('Starting score updates...');
-        const { year, week } = getCurrentWeek();
-        // Get completed games from CFBD API
-        const completedGames = await (0, cfbDataApi_1.getGameScores)(year, week);
-        for (const game of completedGames) {
-            // Find corresponding game in our database
-            const dbGame = await (0, database_1.getQuery)('SELECT * FROM games WHERE external_game_id = ? OR (home_team = ? AND away_team = ?)', [game.id?.toString(), game.home_team, game.away_team]);
+        const { year } = getCurrentWeek();
+        // Check multiple weeks for completed games (current and recent weeks)
+        let allCompletedGames = [];
+        for (let weekOffset = 0; weekOffset <= 4; weekOffset++) {
+            try {
+                const targetWeek = Math.max(1, getCurrentWeek().week - weekOffset);
+                console.log(`Checking Week ${targetWeek} for completed games...`);
+                const weekCompletedGames = await (0, cfbDataApi_1.getGameScores)(year, targetWeek);
+                allCompletedGames = allCompletedGames.concat(weekCompletedGames);
+                console.log(`Found ${weekCompletedGames.length} completed games in Week ${targetWeek}`);
+            }
+            catch (error) {
+                console.warn(`Could not fetch scores for week ${getCurrentWeek().week - weekOffset}:`, error);
+            }
+        }
+        console.log(`Processing ${allCompletedGames.length} total completed games across all weeks`);
+        for (const game of allCompletedGames) {
+            // Find corresponding game in our database with flexible team name matching
+            const dbGame = await (0, database_1.getQuery)(`SELECT * FROM games WHERE external_game_id = ? 
+         OR (LOWER(home_team) LIKE ? AND LOWER(away_team) LIKE ?)
+         OR (LOWER(away_team) LIKE ? AND LOWER(home_team) LIKE ?)`, [
+                game.id?.toString(),
+                `%${game.home_team?.toLowerCase().split(' ')[0]}%`,
+                `%${game.away_team?.toLowerCase().split(' ')[0]}%`,
+                `%${game.home_team?.toLowerCase().split(' ')[0]}%`,
+                `%${game.away_team?.toLowerCase().split(' ')[0]}%`
+            ]);
             if (dbGame) {
+                console.log(`Found database match for ${game.home_team} vs ${game.away_team} (Score: ${game.home_points}-${game.away_points})`);
                 // Calculate spread winner
                 let spreadWinner = null;
                 if (game.home_points !== undefined && game.away_points !== undefined && dbGame.spread) {
@@ -263,7 +285,10 @@ const updateGameScores = async () => {
                 await (0, database_1.runQuery)(`UPDATE games 
            SET home_score = ?, away_score = ?, status = 'completed', spread_winner = ?
            WHERE id = ?`, [game.home_points || null, game.away_points || null, spreadWinner, dbGame.id]);
-                console.log(`Updated score for ${game.home_team} vs ${game.away_team}`);
+                console.log(`✅ Updated score for ${game.home_team} vs ${game.away_team}: ${game.home_points}-${game.away_points}`);
+            }
+            else {
+                console.log(`❌ No database match found for ${game.home_team} vs ${game.away_team}`);
             }
         }
         // Calculate pick results for completed games
