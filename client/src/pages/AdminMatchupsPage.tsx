@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeftIcon, ChevronRightIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { useCreateGames, useWeeks } from '../hooks/useApi';
+import { weekApi, gameApi, adminApi } from '../api';
 
 interface Game {
   id: number;
@@ -27,8 +28,8 @@ const AdminMatchupsPage: React.FC = () => {
   const [currentGames, setCurrentGames] = useState<Game[]>([]);
   const [fetchLoading, setFetchLoading] = useState(false);
   
-  // Use React Query hooks
-  const { data: weeks = [] } = useWeeks(2025);
+  // Use React Query hooks  
+  const [weeks, setWeeks] = useState<Week[]>([]);
   const createGamesMutation = useCreateGames();
   
   // Fetch weeks on load
@@ -46,10 +47,9 @@ const AdminMatchupsPage: React.FC = () => {
   
   const fetchWeeks = async () => {
     try {
-      const response = await fetch('http://localhost:3003/api/weeks');
-      const data = await response.json();
-      const sortedWeeks = data
-        .filter((w: Week) => w.season_year === 2025)
+      const response = await weekApi.getAll(2024);
+      const sortedWeeks = response.data
+        .filter((w: Week) => w.season_year === 2024)
         .sort((a: Week, b: Week) => a.week_number - b.week_number);
       setWeeks(sortedWeeks);
       
@@ -70,9 +70,8 @@ const AdminMatchupsPage: React.FC = () => {
     
     try {
       setFetchLoading(true);
-      const response = await fetch(`http://localhost:3003/api/admin/preview-games/${selectedWeek.season_year}/${selectedWeek.week_number}`);
-      const data = await response.json();
-      setAvailableGames(data.games || []);
+      const response = await adminApi.previewGames(selectedWeek.season_year, selectedWeek.week_number);
+      setAvailableGames(response.data.games || []);
     } catch (error) {
       console.error('Error fetching available games:', error);
     } finally {
@@ -84,9 +83,8 @@ const AdminMatchupsPage: React.FC = () => {
     if (!selectedWeekId) return;
     
     try {
-      const response = await fetch(`http://localhost:3003/api/games/week/${selectedWeekId}`);
-      const data = await response.json();
-      setCurrentGames(data || []);
+      const response = await gameApi.getByWeek(selectedWeekId);
+      setCurrentGames(response.data || []);
     } catch (error) {
       console.error('Error fetching current games:', error);
     }
@@ -171,7 +169,7 @@ const AdminMatchupsPage: React.FC = () => {
             
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">Week {currentWeekNumber}</div>
-              <div className="text-sm text-gray-500">2025 Season</div>
+              <div className="text-sm text-gray-500">2024 Season</div>
             </div>
             
             <button
