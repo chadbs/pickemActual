@@ -9,9 +9,15 @@ router.use((req, res, next) => {
   next();
 });
 
-// Simple test routes with different paths
+// Test routes with multiple HTTP methods for debugging
 router.get('/test', (req, res) => {
-  res.json({ message: 'Admin test working!', timestamp: new Date().toISOString() });
+  console.log('🔍 GET /test route hit');
+  res.json({ message: 'Admin test working! (GET)', method: 'GET', timestamp: new Date().toISOString() });
+});
+
+router.post('/test', (req, res) => {
+  console.log('🔍 POST /test route hit');
+  res.json({ message: 'Admin test working! (POST)', method: 'POST', timestamp: new Date().toISOString() });
 });
 
 router.get('/working', (req, res) => {
@@ -44,7 +50,17 @@ router.get('/dashboard', async (req, res) => {
   }
 });
 
-// Fetch spreads endpoint with proper error handling
+// GET version of fetch-spreads for browser testing
+router.get('/fetch-spreads', async (req, res) => {
+  console.log('🚀 GET FETCH SPREADS ENDPOINT HIT!');
+  res.json({ 
+    message: 'GET fetch spreads working!',
+    method: 'GET',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// POST version - Fetch spreads endpoint with proper error handling
 router.post('/fetch-spreads', async (req, res) => {
   console.log('🚀 POST FETCH SPREADS ENDPOINT HIT!');
   
