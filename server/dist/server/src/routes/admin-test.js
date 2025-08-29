@@ -57,7 +57,7 @@ router.get('/fetch-spreads', async (req, res) => {
         timestamp: new Date().toISOString()
     });
 });
-// POST version - Fetch spreads endpoint with proper error handling
+// POST version - Fetch spreads endpoint with proper error handling and locking
 router.post('/fetch-spreads', async (req, res) => {
     console.log('🚀 POST FETCH SPREADS ENDPOINT HIT!');
     try {
@@ -72,6 +72,15 @@ router.post('/fetch-spreads', async (req, res) => {
         if (!currentWeek) {
             return res.status(404).json({ error: 'No active week found' });
         }
+        // Check if spreads are locked for this week
+        if (currentWeek.spreads_locked) {
+            return res.status(423).json({
+                error: 'Spreads are locked',
+                message: `Spreads for Week ${currentWeek.week_number} are locked because games have started. Cannot update spreads.`,
+                week: currentWeek.week_number,
+                spreads_locked: true
+            });
+        }
         const games = await (0, database_1.allQuery)('SELECT * FROM games WHERE week_id = ?', [currentWeek.id]);
         // For now, just return success without actually calling the API
         // This prevents API quota usage during testing
@@ -80,6 +89,7 @@ router.post('/fetch-spreads', async (req, res) => {
             updated: 0,
             total: games.length,
             week: currentWeek.week_number,
+            spreads_locked: false,
             apiKeyStatus: 'configured',
             timestamp: new Date().toISOString()
         });
@@ -271,6 +281,79 @@ router.post('/create-season-weeks', async (req, res) => {
     catch (error) {
         console.error('Error creating season weeks:', error);
         res.status(500).json({ error: 'Failed to create season weeks' });
+    }
+});
+// Lock spreads for a specific week (prevent further spread updates)
+router.post('/lock-spreads/:week_id', async (req, res) => {
+    try {
+        const { week_id } = req.params;
+        const week = await (0, database_1.getQuery)('SELECT * FROM weeks WHERE id = ? LIMIT 1', [week_id]);
+        if (!week) {
+            return res.status(404).json({ error: 'Week not found' });
+        }
+        await (0, database_1.runQuery)('UPDATE weeks SET spreads_locked = 1 WHERE id = ?', [week_id]);
+        console.log(`🔒 Locked spreads for Week ${week.week_number}`);
+        res.json({
+            message: `Spreads locked for Week ${week.week_number}`,
+            week_number: week.week_number,
+            spreads_locked: true
+        });
+    }
+    catch (error) {
+        console.error('Error locking spreads:', error);
+        res.status(500).json({ error: 'Failed to lock spreads' });
+    }
+});
+// Unlock spreads for a specific week (allow spread updates again)
+router.post('/unlock-spreads/:week_id', async (req, res) => {
+    try {
+        const { week_id } = req.params;
+        const week = await (0, database_1.getQuery)('SELECT * FROM weeks WHERE id = ? LIMIT 1', [week_id]);
+        if (!week) {
+            return res.status(404).json({ error: 'Week not found' });
+        }
+        await (0, database_1.runQuery)('UPDATE weeks SET spreads_locked = 0 WHERE id = ?', [week_id]);
+        console.log(`🔓 Unlocked spreads for Week ${week.week_number}`);
+        res.json({
+            message: `Spreads unlocked for Week ${week.week_number}`,
+            week_number: week.week_number,
+            spreads_locked: false
+        });
+    }
+    catch (error) {
+        console.error('Error unlocking spreads:', error);
+        res.status(500).json({ error: 'Failed to unlock spreads' });
+    }
+});
+// Auto-lock spreads when first game of the week starts
+router.post('/auto-lock-spreads', async (req, res) => {
+    try {
+        console.log('🔍 Checking for weeks that need spread locking...');
+        const now = new Date();
+        // Find weeks where the earliest game has started but spreads aren't locked yet
+        const weeksToLock = await (0, database_1.allQuery)(`SELECT DISTINCT w.id, w.week_number, w.season_year, 
+              MIN(g.start_time) as earliest_game_time
+       FROM weeks w
+       JOIN games g ON w.id = g.week_id
+       WHERE w.spreads_locked = 0
+         AND datetime(g.start_time) <= datetime('now')
+       GROUP BY w.id, w.week_number, w.season_year
+       HAVING datetime(earliest_game_time) <= datetime('now')`);
+        let lockedCount = 0;
+        for (const week of weeksToLock) {
+            await (0, database_1.runQuery)('UPDATE weeks SET spreads_locked = 1 WHERE id = ?', [week.id]);
+            console.log(`🔒 Auto-locked spreads for Week ${week.week_number} (first game started)`);
+            lockedCount++;
+        }
+        res.json({
+            message: `Auto-locked spreads for ${lockedCount} weeks`,
+            locked_weeks: weeksToLock.map(w => ({ week: w.week_number, year: w.season_year })),
+            timestamp: now.toISOString()
+        });
+    }
+    catch (error) {
+        console.error('Error auto-locking spreads:', error);
+        res.status(500).json({ error: 'Failed to auto-lock spreads' });
     }
 });
 exports.default = router;

@@ -48,6 +48,7 @@ const initializeDatabase = () => {
         season_year INTEGER NOT NULL,
         deadline DATETIME NOT NULL,
         is_active BOOLEAN DEFAULT FALSE,
+        spreads_locked BOOLEAN DEFAULT FALSE,
         status TEXT CHECK(status IN ('upcoming', 'active', 'completed')) DEFAULT 'upcoming',
         UNIQUE(week_number, season_year)
       )`,

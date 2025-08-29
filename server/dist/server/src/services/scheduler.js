@@ -336,6 +336,31 @@ const calculatePickResults = async () => {
         console.error('Error calculating pick results:', error);
     }
 };
+// Auto-lock spreads when first game starts
+const autoLockSpreads = async () => {
+    try {
+        const now = new Date();
+        // Find weeks where the earliest game has started but spreads aren't locked yet
+        const weeksToLock = await (0, database_1.allQuery)(`SELECT DISTINCT w.id, w.week_number, w.season_year, 
+              MIN(g.start_time) as earliest_game_time
+       FROM weeks w
+       JOIN games g ON w.id = g.week_id
+       WHERE w.spreads_locked = 0
+         AND datetime(g.start_time) <= datetime('now')
+       GROUP BY w.id, w.week_number, w.season_year
+       HAVING datetime(earliest_game_time) <= datetime('now')`);
+        for (const week of weeksToLock) {
+            await (0, database_1.runQuery)('UPDATE weeks SET spreads_locked = 1 WHERE id = ?', [week.id]);
+            console.log(`🔒 Auto-locked spreads for Week ${week.week_number} (first game started at ${week.earliest_game_time})`);
+        }
+        if (weeksToLock.length > 0) {
+            console.log(`✅ Auto-locked spreads for ${weeksToLock.length} weeks`);
+        }
+    }
+    catch (error) {
+        console.error('Error in auto-lock spreads:', error);
+    }
+};
 // Start all scheduled tasks
 const startScheduler = () => {
     console.log('Starting CFB Pick\'em scheduler...');
@@ -353,6 +378,11 @@ const startScheduler = () => {
     node_cron_1.default.schedule('*/15 * * * 6', () => {
         console.log('Saturday score update check...');
         (0, exports.updateGameScores)();
+    });
+    // Check for spread locking every hour during game season (Thursday-Sunday)
+    node_cron_1.default.schedule('0 * * * 4-0', () => {
+        console.log('Checking for spread auto-lock...');
+        autoLockSpreads();
     });
     // Daily maintenance at 2 AM (clean up, calculate standings)
     node_cron_1.default.schedule('0 2 * * *', () => {

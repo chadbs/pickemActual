@@ -122,6 +122,39 @@ const AdminMatchupsPage: React.FC = () => {
       alert('Error saving matchups');
     }
   };
+
+  const lockSpreads = async () => {
+    if (!selectedWeekId) {
+      alert('Please select a week first');
+      return;
+    }
+    
+    const confirmed = window.confirm(
+      `Are you sure you want to lock the spreads for Week ${currentWeekNumber}? ` +
+      'Once locked, the spreads cannot be changed and all picks will be scored against these spreads.'
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      const response = await fetch(`/api/admin/lock-spreads/${selectedWeekId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to lock spreads');
+      }
+      
+      const result = await response.json();
+      alert(`Spreads locked successfully for Week ${result.week_number}! Spreads are now frozen until all games are completed.`);
+    } catch (error) {
+      console.error('Error locking spreads:', error);
+      alert('Error locking spreads. Please try again.');
+    }
+  };
   
   const selectedWeek = weeks.find(w => w.id === selectedWeekId);
   const currentWeekNumber = selectedWeek?.week_number || 1;
@@ -245,6 +278,12 @@ const AdminMatchupsPage: React.FC = () => {
             <span className="text-sm text-gray-600">
               Selected: {selectedGames.size}/8
             </span>
+            <button
+              onClick={lockSpreads}
+              className="bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              Lock Spreads
+            </button>
             <button
               onClick={saveMatchups}
               disabled={selectedGames.size !== 8 || createGamesMutation.isPending}
