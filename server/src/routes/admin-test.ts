@@ -170,15 +170,14 @@ router.post('/create-games', async (req, res) => {
       const result = await runQuery(
         `INSERT INTO games (
           week_id, 
-          cfbd_id, 
+          external_game_id, 
           home_team, 
           away_team, 
           spread, 
           favorite_team, 
-          start_date, 
-          created_at, 
-          updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+          start_time, 
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
         [
           week_id,
           game.id || 'preview_' + Date.now(),

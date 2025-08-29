@@ -146,15 +146,14 @@ router.post('/create-games', async (req, res) => {
             const favoriteInfo = [game.home_team, game.away_team].find(team => ['alabama', 'georgia', 'oregon', 'texas', 'oklahoma', 'michigan', 'ohio state'].some(fav => team.toLowerCase().includes(fav.toLowerCase())));
             const result = await (0, database_1.runQuery)(`INSERT INTO games (
           week_id, 
-          cfbd_id, 
+          external_game_id, 
           home_team, 
           away_team, 
           spread, 
           favorite_team, 
-          start_date, 
-          created_at, 
-          updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`, [
+          start_time, 
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`, [
                 week_id,
                 game.id || 'preview_' + Date.now(),
                 game.home_team,
