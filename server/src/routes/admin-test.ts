@@ -38,11 +38,19 @@ router.get('/dashboard', async (req, res) => {
   }
 });
 
-// Simple fetch spreads endpoints with different methods/paths
+// Fetch spreads endpoint with proper error handling
 router.post('/fetch-spreads', async (req, res) => {
   console.log('🚀 POST FETCH SPREADS ENDPOINT HIT!');
   
   try {
+    // Check if ODDS_API_KEY is configured
+    if (!process.env.ODDS_API_KEY) {
+      return res.status(400).json({ 
+        error: 'ODDS_API_KEY not configured',
+        message: 'Please set the ODDS_API_KEY environment variable to fetch odds data'
+      });
+    }
+    
     const currentWeek = await getQuery<any>('SELECT * FROM weeks WHERE is_active = 1 LIMIT 1');
     if (!currentWeek) {
       return res.status(404).json({ error: 'No active week found' });
@@ -50,16 +58,22 @@ router.post('/fetch-spreads', async (req, res) => {
     
     const games = await allQuery<any>('SELECT * FROM games WHERE week_id = ?', [currentWeek.id]);
     
+    // For now, just return success without actually calling the API
+    // This prevents API quota usage during testing
     res.json({ 
-      message: 'POST fetch spreads working!',
+      message: 'Fetch spreads endpoint working (API key configured)',
       updated: 0,
       total: games.length,
       week: currentWeek.week_number,
+      apiKeyStatus: 'configured',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('Error in fetch spreads:', error);
-    res.status(500).json({ error: 'Failed to fetch spreads' });
+    res.status(500).json({ 
+      error: 'Failed to fetch spreads',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 

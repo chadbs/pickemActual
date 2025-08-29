@@ -77,23 +77,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Fetch spreads endpoint
-app.post('/api/admin/fetch-spreads', async (req, res) => {
-  try {
-    console.log('🎯 Fetch spreads endpoint hit!');
-    res.json({ 
-      success: true, 
-      message: 'Spreads fetched successfully',
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Error fetching spreads:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch spreads',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
 
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
