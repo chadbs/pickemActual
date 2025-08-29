@@ -33,7 +33,12 @@ const GameCard: React.FC<GameCardProps> = ({
   };
 
   const handlePick = async (selectedTeam: string) => {
-    if (!currentUser || disabled) return; // Allow picks regardless of game status for testing
+    if (!currentUser || disabled || hasGameStarted()) {
+      if (hasGameStarted()) {
+        alert('Cannot make picks - the game has already started!');
+      }
+      return;
+    }
 
     try {
       await createPickMutation.mutateAsync({
@@ -50,7 +55,12 @@ const GameCard: React.FC<GameCardProps> = ({
 
   const isSelected = (team: string) => game.user_pick?.selected_team === team;
   const isCompleted = game.status === 'completed';
-  const canMakePick = currentUser && !disabled && (game.status === 'scheduled' || game.status === 'completed'); // Allow picks on completed games for testing
+  const hasGameStarted = () => {
+    const now = new Date();
+    const gameStart = new Date(game.start_time);
+    return now >= gameStart;
+  };
+  const canMakePick = currentUser && !disabled && game.status === 'scheduled' && !hasGameStarted();
 
   const getStatusBadge = () => {
     switch (game.status) {
@@ -59,6 +69,10 @@ const GameCard: React.FC<GameCardProps> = ({
       case 'live':
         return <span className="text-xs px-2 py-1 bg-red-100 text-red-800 rounded">Live</span>;
       default:
+        // Check if game has started but isn't marked as live/completed yet
+        if (hasGameStarted()) {
+          return <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded">Started</span>;
+        }
         return <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">Scheduled</span>;
     }
   };
@@ -106,6 +120,14 @@ const GameCard: React.FC<GameCardProps> = ({
       {game.spread && (
         <div className="text-center mb-3 p-2 bg-gray-50 rounded text-base font-medium">
           Spread: {game.favorite_team} -{game.spread}
+        </div>
+      )}
+
+      {/* Spread Winner */}
+      {isCompleted && game.spread_winner && (
+        <div className="text-center mb-3 p-2 bg-gradient-to-r from-green-100 to-green-200 border border-green-300 rounded-lg">
+          <div className="text-sm font-bold text-green-800">🏆 SPREAD WINNER</div>
+          <div className="text-lg font-bold text-green-900">{game.spread_winner}</div>
         </div>
       )}
 
@@ -175,8 +197,19 @@ const GameCard: React.FC<GameCardProps> = ({
 
               {/* No Pick Message */}
               {!game.user_pick && (
-                <div className="bg-gray-50 rounded p-3 text-center text-sm text-gray-600">
-                  {!currentUser ? 'Select a user to make picks' : 'Picking closed'}
+                <div className={`rounded p-3 text-center text-sm ${
+                  hasGameStarted() 
+                    ? 'bg-yellow-50 border border-yellow-200 text-yellow-800' 
+                    : 'bg-gray-50 text-gray-600'
+                }`}>
+                  {!currentUser 
+                    ? 'Select a user to make picks' 
+                    : hasGameStarted() 
+                      ? '⏰ Picking closed - Game has started' 
+                      : isCompleted 
+                        ? 'Game completed' 
+                        : 'Picking closed'
+                  }
                 </div>
               )}
             </div>
