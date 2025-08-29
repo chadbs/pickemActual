@@ -93,13 +93,15 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   });
 });
 
+// API 404 handler - must come after all API routes
+app.use('/api/*', (req, res) => {
+  console.log(`❌ Unhandled API route: ${req.method} ${req.path}`);
+  res.status(404).json({ error: 'API route not found' });
+});
+
 // Serve React app for non-API routes in production
 if (isProduction) {
   app.get('*', (req, res) => {
-    // Don't serve React for API routes
-    if (req.path.startsWith('/api')) {
-      return res.status(404).json({ error: 'API route not found' });
-    }
     
     // Try multiple possible paths for index.html
     const possibleIndexPaths = [
