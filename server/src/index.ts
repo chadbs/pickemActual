@@ -13,7 +13,7 @@ import gameRoutes from './routes/games';
 import pickRoutes from './routes/picks';
 import weekRoutes from './routes/weeks';
 import leaderboardRoutes from './routes/leaderboard';
-import adminRoutes from './routes/admin-working';
+import adminRoutes from './routes/admin-test';
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
