@@ -3,9 +3,17 @@ import { runQuery, getQuery, allQuery } from '../database/database';
 
 const router = express.Router();
 
-// Simple test route
+// Simple test routes with different paths
 router.get('/test', (req, res) => {
-  res.json({ message: 'Admin working!', timestamp: new Date().toISOString() });
+  res.json({ message: 'Admin test working!', timestamp: new Date().toISOString() });
+});
+
+router.get('/working', (req, res) => {
+  res.json({ message: 'Admin working route!', timestamp: new Date().toISOString() });
+});
+
+router.get('/debug', (req, res) => {
+  res.json({ message: 'Admin debug route!', timestamp: new Date().toISOString() });
 });
 
 // Get admin dashboard stats (simplified)
@@ -25,12 +33,11 @@ router.get('/dashboard', async (req, res) => {
   }
 });
 
-// Simple fetch spreads endpoint (no complex imports)
+// Simple fetch spreads endpoints with different methods/paths
 router.post('/fetch-spreads', async (req, res) => {
-  console.log('🚀 WORKING FETCH SPREADS ENDPOINT HIT!');
+  console.log('🚀 POST FETCH SPREADS ENDPOINT HIT!');
   
   try {
-    // Get current week games
     const currentWeek = await getQuery<any>('SELECT * FROM weeks WHERE is_active = 1 LIMIT 1');
     if (!currentWeek) {
       return res.status(404).json({ error: 'No active week found' });
@@ -39,7 +46,7 @@ router.post('/fetch-spreads', async (req, res) => {
     const games = await allQuery<any>('SELECT * FROM games WHERE week_id = ?', [currentWeek.id]);
     
     res.json({ 
-      message: 'Working fetch spreads endpoint!',
+      message: 'POST fetch spreads working!',
       updated: 0,
       total: games.length,
       week: currentWeek.week_number,
@@ -49,6 +56,15 @@ router.post('/fetch-spreads', async (req, res) => {
     console.error('Error in fetch spreads:', error);
     res.status(500).json({ error: 'Failed to fetch spreads' });
   }
+});
+
+router.get('/fetch-spreads-test', async (req, res) => {
+  console.log('🚀 GET FETCH SPREADS TEST HIT!');
+  res.json({ 
+    message: 'GET fetch spreads test working!',
+    method: 'GET',
+    timestamp: new Date().toISOString()
+  });
 });
 
 export default router;
