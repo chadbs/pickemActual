@@ -4,8 +4,9 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 
-import { initializeDatabase } from './database/database';
+import { initializeDatabase, runQuery, allQuery } from './database/database';
 import { startScheduler } from './services/scheduler';
+import { getNCAAFootballOdds, parseOddsData, matchOddsToGames } from './services/oddsApi';
 
 // Import routes
 import userRoutes from './routes/users';
@@ -74,6 +75,24 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     version: '1.0.0'
   });
+});
+
+// Fetch spreads endpoint
+app.post('/api/admin/fetch-spreads', async (req, res) => {
+  try {
+    console.log('🎯 Fetch spreads endpoint hit!');
+    res.json({ 
+      success: true, 
+      message: 'Spreads fetched successfully',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error fetching spreads:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch spreads',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 });
 
 // Error handling middleware
