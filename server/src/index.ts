@@ -59,6 +59,12 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
+// Test admin route at same level as users to debug routing
+app.get('/api/admin-direct-test', (req, res) => {
+  console.log('🚀 ADMIN DIRECT TEST HIT!');
+  res.json({ message: 'Admin direct test working!', timestamp: new Date().toISOString() });
+});
+
 // Routes
 app.use('/api/users', userRoutes);
 // app.use('/api/games', gameRoutes);
@@ -68,6 +74,7 @@ app.use('/api/users', userRoutes);
 
 // Admin routes directly in index.ts to eliminate import issues
 app.get('/api/admin/test', (req, res) => {
+  console.log('🚀 ADMIN TEST HIT!');
   res.json({ message: 'Direct admin test route working!', timestamp: new Date().toISOString() });
 });
 
