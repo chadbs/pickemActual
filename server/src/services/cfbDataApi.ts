@@ -23,20 +23,20 @@ export interface CFBDGameResponse {
   id: number;
   season: number;
   week: number;
-  season_type: string;
-  start_date: string;
-  start_time_tbd: boolean;
-  neutral_site: boolean;
-  conference_game: boolean;
+  seasonType: string;
+  startDate: string;
+  startTimeTBD: boolean;
+  neutralSite: boolean;
+  conferenceGame: boolean;
   attendance?: number;
-  venue_id?: number;
+  venueId?: number;
   venue?: string;
-  home_team: string;
-  home_conference?: string;
-  home_points?: number;
-  away_team: string;
-  away_conference?: string;
-  away_points?: number;
+  homeTeam: string;
+  homeConference?: string;
+  homePoints?: number;
+  awayTeam: string;
+  awayConference?: string;
+  awayPoints?: number;
   completed: boolean;
 }
 

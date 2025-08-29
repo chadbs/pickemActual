@@ -330,21 +330,21 @@ export const updateGameScores = async (): Promise<void> => {
          OR (LOWER(away_team) LIKE ? AND LOWER(home_team) LIKE ?)`,
         [
           game.id?.toString(), 
-          `%${game.home_team?.toLowerCase().split(' ')[0]}%`,
-          `%${game.away_team?.toLowerCase().split(' ')[0]}%`,
-          `%${game.home_team?.toLowerCase().split(' ')[0]}%`, 
-          `%${game.away_team?.toLowerCase().split(' ')[0]}%`
+          `%${game.homeTeam?.toLowerCase().split(' ')[0]}%`,
+          `%${game.awayTeam?.toLowerCase().split(' ')[0]}%`,
+          `%${game.homeTeam?.toLowerCase().split(' ')[0]}%`, 
+          `%${game.awayTeam?.toLowerCase().split(' ')[0]}%`
         ]
       );
       
       if (dbGame) {
-        console.log(`Found database match for ${game.home_team} vs ${game.away_team} (Score: ${game.home_points}-${game.away_points})`);
+        console.log(`Found database match for ${game.homeTeam} vs ${game.awayTeam} (Score: ${game.homePoints}-${game.awayPoints})`);
         
         // Calculate spread winner
         let spreadWinner: string | null = null;
-        if (game.home_points !== undefined && game.away_points !== undefined && dbGame.spread) {
-          const homeScore = game.home_points;
-          const awayScore = game.away_points;
+        if (game.homePoints !== undefined && game.awayPoints !== undefined && dbGame.spread) {
+          const homeScore = game.homePoints;
+          const awayScore = game.awayPoints;
           const spread = dbGame.spread;
           const favorite = dbGame.favorite_team;
           
@@ -362,12 +362,12 @@ export const updateGameScores = async (): Promise<void> => {
           `UPDATE games 
            SET home_score = ?, away_score = ?, status = 'completed', spread_winner = ?
            WHERE id = ?`,
-          [game.home_points || null, game.away_points || null, spreadWinner, dbGame.id]
+          [game.homePoints || null, game.awayPoints || null, spreadWinner, dbGame.id]
         );
         
-        console.log(`✅ Updated score for ${game.home_team} vs ${game.away_team}: ${game.home_points}-${game.away_points}`);
+        console.log(`✅ Updated score for ${game.homeTeam} vs ${game.awayTeam}: ${game.homePoints}-${game.awayPoints}`);
       } else {
-        console.log(`❌ No database match found for ${game.home_team} vs ${game.away_team}`);
+        console.log(`❌ No database match found for ${game.homeTeam} vs ${game.awayTeam}`);
       }
     }
     
