@@ -16,7 +16,7 @@ const games_1 = __importDefault(require("./routes/games"));
 const picks_1 = __importDefault(require("./routes/picks"));
 const weeks_1 = __importDefault(require("./routes/weeks"));
 const leaderboard_1 = __importDefault(require("./routes/leaderboard"));
-const admin_1 = __importDefault(require("./routes/admin"));
+const admin_test_1 = __importDefault(require("./routes/admin-test"));
 dotenv_1.default.config({ path: path_1.default.join(__dirname, '../.env') });
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3003;
@@ -55,13 +55,18 @@ const dataDir = path_1.default.join(__dirname, '../data');
 if (!fs_1.default.existsSync(dataDir)) {
     fs_1.default.mkdirSync(dataDir, { recursive: true });
 }
+// Debug middleware to log all requests
+app.use('/api', (req, res, next) => {
+    console.log(`🔍 API request: ${req.method} ${req.path}`);
+    next();
+});
 // Routes
 app.use('/api/users', users_1.default);
 app.use('/api/games', games_1.default);
 app.use('/api/picks', picks_1.default);
 app.use('/api/weeks', weeks_1.default);
 app.use('/api/leaderboard', leaderboard_1.default);
-app.use('/api/admin', admin_1.default);
+app.use('/api/admin', admin_test_1.default);
 // Health check endpoint
 app.get('/api/health', (req, res) => {
     res.json({
@@ -78,13 +83,14 @@ app.use((err, req, res, next) => {
         message: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
 });
+// API 404 handler - must come after all API routes
+app.use('/api/*', (req, res) => {
+    console.log(`❌ Unhandled API route: ${req.method} ${req.path}`);
+    res.status(404).json({ error: 'API route not found' });
+});
 // Serve React app for non-API routes in production
 if (isProduction) {
     app.get('*', (req, res) => {
-        // Don't serve React for API routes
-        if (req.path.startsWith('/api')) {
-            return res.status(404).json({ error: 'API route not found' });
-        }
         // Try multiple possible paths for index.html
         const possibleIndexPaths = [
             path_1.default.join(__dirname, '../../client/dist/index.html'),

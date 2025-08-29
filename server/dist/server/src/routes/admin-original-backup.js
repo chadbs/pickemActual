@@ -9,6 +9,16 @@ const scheduler_1 = require("../services/scheduler");
 const cfbDataApi_1 = require("../services/cfbDataApi");
 const oddsApi_1 = require("../services/oddsApi");
 const router = express_1.default.Router();
+// Fetch fresh spreads for current week games
+router.post('/fetch-spreads', async (req, res) => {
+    console.log('🚀 FETCH SPREADS ENDPOINT HIT!');
+    res.json({
+        message: 'Fetch spreads endpoint is working!',
+        updated: 0,
+        total: 0,
+        timestamp: new Date().toISOString()
+    });
+});
 // Get admin dashboard stats
 router.get('/dashboard', async (req, res) => {
     try {
@@ -176,6 +186,16 @@ router.delete('/seasons/:year', async (req, res) => {
         res.status(500).json({ error: 'Failed to delete season data' });
     }
 });
+// Fetch fresh spreads for current week games
+router.post('/fetch-spreads', async (req, res) => {
+    console.log('🚀 FETCH SPREADS ENDPOINT HIT!');
+    res.json({
+        message: 'Fetch spreads endpoint is working!',
+        updated: 0,
+        total: 0,
+        timestamp: new Date().toISOString()
+    });
+});
 // Manually trigger score updates
 router.post('/update-scores', async (req, res) => {
     try {
@@ -227,8 +247,35 @@ router.post('/create-games', async (req, res) => {
         // Clear existing games for this week to prevent duplicates
         await (0, database_1.runQuery)('DELETE FROM games WHERE week_id = ?', [week_id]);
         console.log(`Cleared existing games for Week ${week.week_number}`);
+        // Try to fetch fresh odds for the selected games
+        let gamesWithOdds = selected_games;
+        try {
+            console.log('Attempting to fetch fresh odds for selected games...');
+            console.log('Sample selected game:', JSON.stringify(selected_games[0], null, 2));
+            const rawOdds = await (0, oddsApi_1.getNCAAFootballOdds)();
+            console.log(`Fetched ${rawOdds.length} odds from API`);
+            if (rawOdds.length > 0) {
+                console.log('Sample raw odds:', JSON.stringify(rawOdds[0], null, 2));
+            }
+            const parsedOdds = (0, oddsApi_1.parseOddsData)(rawOdds);
+            console.log(`Parsed ${parsedOdds.length} odds`);
+            if (parsedOdds.length > 0) {
+                console.log('Sample parsed odds:', JSON.stringify(parsedOdds[0], null, 2));
+            }
+            gamesWithOdds = (0, oddsApi_1.matchOddsToGames)(selected_games, parsedOdds);
+            console.log(`Successfully applied odds to ${gamesWithOdds.filter(g => g.spread).length} games`);
+            // Log first game with/without spread for debugging
+            if (gamesWithOdds.length > 0) {
+                const firstGame = gamesWithOdds[0];
+                console.log(`First matched game: ${firstGame.away_team} @ ${firstGame.home_team}, spread: ${firstGame.spread}, favorite: ${firstGame.favorite_team}`);
+            }
+        }
+        catch (error) {
+            console.warn('Could not fetch fresh odds for selected games:', error);
+            console.log('Using existing spread data from preview (may be null)');
+        }
         const createdGames = [];
-        for (const game of selected_games.slice(0, 8)) { // Max 8 games
+        for (const game of gamesWithOdds.slice(0, 8)) { // Max 8 games
             const isFavoriteGame = [game.home_team, game.away_team].some(team => ['Colorado', 'Colorado State', 'Nebraska', 'Michigan'].some(fav => team.toLowerCase().includes(fav.toLowerCase())));
             const result = await (0, database_1.runQuery)(`INSERT INTO games 
          (week_id, external_game_id, home_team, away_team, spread, favorite_team, 
@@ -509,4 +556,4 @@ router.get('/export/:type', async (req, res) => {
     }
 });
 exports.default = router;
-//# sourceMappingURL=admin.js.map
+//# sourceMappingURL=admin-original-backup.js.map
