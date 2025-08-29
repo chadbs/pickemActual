@@ -18,6 +18,7 @@ router.get('/debug', (req, res) => {
 
 // Get admin dashboard stats (simplified)
 router.get('/dashboard', async (req, res) => {
+  console.log('🚀 ADMIN-WORKING DASHBOARD HIT!');
   try {
     const stats = await getQuery<any>(
       `SELECT 
@@ -26,7 +27,11 @@ router.get('/dashboard', async (req, res) => {
          (SELECT COUNT(*) FROM picks) as total_picks`
     );
     
-    res.json(stats);
+    res.json({
+      ...stats,
+      message: 'FROM ADMIN-WORKING.TS!',
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);
     res.status(500).json({ error: 'Failed to fetch dashboard stats' });
