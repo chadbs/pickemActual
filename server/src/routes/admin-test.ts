@@ -3,6 +3,12 @@ import { runQuery, getQuery, allQuery } from '../database/database';
 
 const router = express.Router();
 
+// Debug middleware to log all requests to admin routes
+router.use((req, res, next) => {
+  console.log(`🔍 Admin route hit: ${req.method} ${req.path}`);
+  next();
+});
+
 // Simple test routes with different paths
 router.get('/test', (req, res) => {
   res.json({ message: 'Admin test working!', timestamp: new Date().toISOString() });

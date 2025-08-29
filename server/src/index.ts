@@ -60,6 +60,12 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
+// Debug middleware to log all requests
+app.use('/api', (req, res, next) => {
+  console.log(`🔍 API request: ${req.method} ${req.path}`);
+  next();
+});
+
 // Routes
 app.use('/api/users', userRoutes);
 app.use('/api/games', gameRoutes);
