@@ -17,7 +17,11 @@
       "Bash(cmd /c:*)",
       "Bash(node:*)",
       "Bash(npx tailwindcss:*)",
-      "Bash(npm run check-games:*)"
+      "Bash(npm run check-games:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(PORT=3004 npm run dev)"
     ],
     "deny": [],
     "ask": []

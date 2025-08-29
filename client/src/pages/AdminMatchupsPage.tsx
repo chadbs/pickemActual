@@ -47,9 +47,9 @@ const AdminMatchupsPage: React.FC = () => {
   
   const fetchWeeks = async () => {
     try {
-      const response = await weekApi.getAll(2024);
+      const response = await weekApi.getAll(2025);
       const sortedWeeks = response.data
-        .filter((w: Week) => w.season_year === 2024)
+        .filter((w: Week) => w.season_year === 2025)
         .sort((a: Week, b: Week) => a.week_number - b.week_number);
       setWeeks(sortedWeeks);
       
@@ -169,7 +169,7 @@ const AdminMatchupsPage: React.FC = () => {
             
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">Week {currentWeekNumber}</div>
-              <div className="text-sm text-gray-500">2024 Season</div>
+              <div className="text-sm text-gray-500">2025 Season</div>
             </div>
             
             <button
