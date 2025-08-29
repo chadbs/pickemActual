@@ -356,5 +356,31 @@ router.post('/auto-lock-spreads', async (req, res) => {
         res.status(500).json({ error: 'Failed to auto-lock spreads' });
     }
 });
+// Debug endpoint to check what CFBD API returns for completed games
+router.get('/debug-scores/:year/:week', async (req, res) => {
+    try {
+        const { year, week } = req.params;
+        console.log(`🔍 Debug: Checking scores for ${year} week ${week}`);
+        const { getGameScores } = require('../services/cfbDataApi');
+        const completedGames = await getGameScores(parseInt(year), parseInt(week));
+        console.log(`Found ${completedGames.length} completed games from CFBD API`);
+        completedGames.forEach((game) => {
+            console.log(`- ${game.away_team} @ ${game.home_team}: ${game.away_points}-${game.home_points} (completed: ${game.completed})`);
+        });
+        // Also check our database games
+        const dbGames = await (0, database_1.allQuery)('SELECT * FROM games WHERE week_id IN (SELECT id FROM weeks WHERE season_year = ? AND week_number = ?)', [parseInt(year), parseInt(week)]);
+        console.log(`Found ${dbGames.length} games in our database for this week`);
+        res.json({
+            cfbd_completed_games: completedGames,
+            database_games: dbGames,
+            cfbd_count: completedGames.length,
+            database_count: dbGames.length
+        });
+    }
+    catch (error) {
+        console.error('Error in debug scores:', error);
+        res.status(500).json({ error: 'Failed to debug scores' });
+    }
+});
 exports.default = router;
 //# sourceMappingURL=admin-test.js.map
