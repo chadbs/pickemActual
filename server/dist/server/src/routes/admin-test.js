@@ -382,5 +382,80 @@ router.get('/debug-scores/:year/:week', async (req, res) => {
         res.status(500).json({ error: 'Failed to debug scores' });
     }
 });
+// Clean up 2024 season data (games, weeks, picks, scores)
+router.post('/cleanup-2024', async (req, res) => {
+    try {
+        console.log('🧹 Starting 2024 season data cleanup...');
+        // Get count before deletion for reporting
+        const week2024Count = await (0, database_1.getQuery)('SELECT COUNT(*) as count FROM weeks WHERE season_year = 2024');
+        const game2024Count = await (0, database_1.getQuery)('SELECT COUNT(*) as count FROM games WHERE week_id IN (SELECT id FROM weeks WHERE season_year = 2024)');
+        const pick2024Count = await (0, database_1.getQuery)('SELECT COUNT(*) as count FROM picks WHERE game_id IN (SELECT g.id FROM games g JOIN weeks w ON g.week_id = w.id WHERE w.season_year = 2024)');
+        const weeklyScore2024Count = await (0, database_1.getQuery)('SELECT COUNT(*) as count FROM weekly_scores WHERE week_id IN (SELECT id FROM weeks WHERE season_year = 2024)');
+        console.log(`Found 2024 data: ${week2024Count?.count || 0} weeks, ${game2024Count?.count || 0} games, ${pick2024Count?.count || 0} picks, ${weeklyScore2024Count?.count || 0} weekly scores`);
+        // Delete in correct order (foreign key constraints)
+        // 1. Delete picks first (references games)
+        await (0, database_1.runQuery)('DELETE FROM picks WHERE game_id IN (SELECT g.id FROM games g JOIN weeks w ON g.week_id = w.id WHERE w.season_year = 2024)');
+        console.log(`🗑️ Deleted ${pick2024Count?.count || 0} picks from 2024`);
+        // 2. Delete weekly scores (references weeks) 
+        await (0, database_1.runQuery)('DELETE FROM weekly_scores WHERE week_id IN (SELECT id FROM weeks WHERE season_year = 2024)');
+        console.log(`🗑️ Deleted ${weeklyScore2024Count?.count || 0} weekly scores from 2024`);
+        // 3. Delete games (references weeks)
+        await (0, database_1.runQuery)('DELETE FROM games WHERE week_id IN (SELECT id FROM weeks WHERE season_year = 2024)');
+        console.log(`🗑️ Deleted ${game2024Count?.count || 0} games from 2024`);
+        // 4. Finally delete weeks
+        await (0, database_1.runQuery)('DELETE FROM weeks WHERE season_year = 2024');
+        console.log(`🗑️ Deleted ${week2024Count?.count || 0} weeks from 2024`);
+        // Verify cleanup
+        const remainingWeeks = await (0, database_1.getQuery)('SELECT COUNT(*) as count FROM weeks WHERE season_year = 2024');
+        const remainingGames = await (0, database_1.getQuery)('SELECT COUNT(*) as count FROM games WHERE week_id IN (SELECT id FROM weeks WHERE season_year = 2024)');
+        console.log('✅ 2024 cleanup completed successfully');
+        res.json({
+            message: '2024 season data cleanup completed successfully',
+            deleted: {
+                weeks: week2024Count?.count || 0,
+                games: game2024Count?.count || 0,
+                picks: pick2024Count?.count || 0,
+                weekly_scores: weeklyScore2024Count?.count || 0
+            },
+            remaining: {
+                weeks_2024: remainingWeeks?.count || 0,
+                games_2024: remainingGames?.count || 0
+            },
+            timestamp: new Date().toISOString()
+        });
+    }
+    catch (error) {
+        console.error('Error cleaning up 2024 data:', error);
+        res.status(500).json({ error: 'Failed to cleanup 2024 data' });
+    }
+});
+// Manually update active week to current calculated week
+router.post('/update-active-week', async (req, res) => {
+    try {
+        console.log('📅 Manual active week update triggered');
+        const { getCurrentWeek } = require('../services/scheduler');
+        const { year, week } = getCurrentWeek();
+        // Get current active week for comparison
+        const currentActive = await (0, database_1.getQuery)('SELECT * FROM weeks WHERE is_active = 1 LIMIT 1');
+        // Set all weeks as inactive first
+        await (0, database_1.runQuery)('UPDATE weeks SET is_active = 0 WHERE season_year = ?', [year]);
+        // Set the calculated current week as active
+        const result = await (0, database_1.runQuery)('UPDATE weeks SET is_active = 1 WHERE week_number = ? AND season_year = ?', [week, year]);
+        const newActive = await (0, database_1.getQuery)('SELECT * FROM weeks WHERE is_active = 1 LIMIT 1');
+        console.log(`✅ Active week updated from Week ${currentActive?.week_number || 'none'} to Week ${week}`);
+        res.json({
+            message: `Active week updated to Week ${week} of ${year}`,
+            previous_active: currentActive ? `Week ${currentActive.week_number}` : 'none',
+            new_active: `Week ${week}`,
+            year: year,
+            updated_rows: result.changes,
+            timestamp: new Date().toISOString()
+        });
+    }
+    catch (error) {
+        console.error('Error updating active week:', error);
+        res.status(500).json({ error: 'Failed to update active week' });
+    }
+});
 exports.default = router;
 //# sourceMappingURL=admin-test.js.map

@@ -8,49 +8,67 @@ const node_cron_1 = __importDefault(require("node-cron"));
 const cfbDataApi_1 = require("./cfbDataApi");
 const oddsApi_1 = require("./oddsApi");
 const database_1 = require("../database/database");
-// Get current college football week based on date
+// Get current college football week based on Monday-to-Sunday cycles
 const getCurrentWeek = () => {
     const now = new Date();
-    let year = now.getFullYear();
-    // Use 2025 season data for the current season
-    year = 2025;
-    // College football 2025 schedule:
-    // Week 0: August 24-27 (completed)
-    // Week 1: August 28 - September 3 (current week)
-    // Week 2: September 4-10, etc.
-    const currentDate = now.getDate();
-    const currentMonth = now.getMonth(); // 0-indexed (7 = August)
-    let week = 1; // Default to Week 1
-    // Week 1 starts August 28th, so if we're August 27 or earlier, it's still Week 0 (but we show Week 1)
-    if (currentMonth === 7) { // August
-        if (currentDate >= 28) {
-            week = 1; // Week 1 starts August 28
+    const year = 2025; // Current CFB season
+    // College Football 2025 Season Week Schedule (Monday to Sunday cycles):
+    // Week 1: Monday Aug 25 - Sunday Aug 31 (games primarily Thu-Sat Aug 28-30)
+    // Week 2: Monday Sep 1 - Sunday Sep 7 (games primarily Thu-Sat Sep 4-6)
+    // Week 3: Monday Sep 8 - Sunday Sep 14 (games primarily Thu-Sat Sep 11-13)
+    // etc.
+    // Season starts Monday August 25th, 2025
+    const season2025Start = new Date(2025, 7, 25); // August 25, 2025 (Monday)
+    // Before season starts, show Week 1
+    if (now < season2025Start) {
+        console.log(`Pre-season: ${now.toDateString()}, showing Week 1`);
+        return { year, week: 1 };
+    }
+    // Calculate which week we're in based on Monday-to-Sunday cycles
+    const timeDiff = now.getTime() - season2025Start.getTime();
+    const daysDiff = Math.floor(timeDiff / (24 * 60 * 60 * 1000));
+    const weekNumber = Math.floor(daysDiff / 7) + 1; // +1 because week 1 starts on day 0
+    // Cap at week 15 (end of regular season)
+    const week = Math.max(1, Math.min(15, weekNumber));
+    // Debug info
+    const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' });
+    console.log(`Current: ${currentDay} ${now.toDateString()}, Season Week: ${week}, Days since season start: ${daysDiff}`);
+    return { year, week };
+};
+// Update active week to match current calculated week
+const updateActiveWeek = async () => {
+    const { year, week } = getCurrentWeek();
+    try {
+        // Set all weeks in the season as inactive first
+        await (0, database_1.runQuery)('UPDATE weeks SET is_active = 0 WHERE season_year = ?', [year]);
+        // Set the current week as active
+        const result = await (0, database_1.runQuery)('UPDATE weeks SET is_active = 1 WHERE week_number = ? AND season_year = ?', [week, year]);
+        if (result.changes > 0) {
+            console.log(`✅ Updated active week to Week ${week} of ${year}`);
         }
         else {
-            week = 1; // Show Week 1 even if Week 0 just finished
+            console.log(`⚠️ Week ${week} of ${year} not found in database - may need to be created`);
         }
     }
-    else if (currentMonth >= 8) { // September or later
-        // Calculate weeks since August 28
-        const week1Start = new Date(year, 7, 28); // August 28th
-        const weeksSinceWeek1 = Math.floor((now.getTime() - week1Start.getTime()) / (7 * 24 * 60 * 60 * 1000));
-        week = Math.max(1, Math.min(15, weeksSinceWeek1 + 1));
+    catch (error) {
+        console.error('Error updating active week:', error);
     }
-    console.log(`Current date: ${now.toDateString()}, Using year: ${year}, Calculated week: ${week}`);
-    return { year, week };
 };
 // Create or update current week
 const ensureCurrentWeek = async () => {
     const { year, week } = getCurrentWeek();
+    // First update which week should be active
+    await updateActiveWeek();
     // Check if week already exists
     const existingWeek = await (0, database_1.getQuery)('SELECT * FROM weeks WHERE week_number = ? AND season_year = ?', [week, year]);
     if (existingWeek) {
         return existingWeek;
     }
     // Calculate deadline (Saturday 8 PM of game week)
-    const now = new Date();
-    const deadline = new Date(now);
-    deadline.setDate(deadline.getDate() + (6 - deadline.getDay())); // Next Saturday
+    const season2025Start = new Date(2025, 7, 25); // August 25, 2025 (Monday) 
+    const weekStartDate = new Date(season2025Start.getTime() + ((week - 1) * 7 * 24 * 60 * 60 * 1000));
+    const deadline = new Date(weekStartDate);
+    deadline.setDate(deadline.getDate() + 6); // Sunday of that week
     deadline.setHours(20, 0, 0, 0); // 8 PM
     // Create new week
     const result = await (0, database_1.runQuery)(`INSERT INTO weeks (week_number, season_year, deadline, is_active, status)
@@ -63,7 +81,7 @@ const ensureCurrentWeek = async () => {
         is_active: true,
         status: 'active'
     };
-    console.log(`Created new week: ${year} Week ${week}`);
+    console.log(`Created new week: ${year} Week ${week} (deadline: ${deadline.toDateString()})`);
     return newWeek;
 };
 // Fetch and store games for all weeks 1-12
@@ -364,6 +382,11 @@ const autoLockSpreads = async () => {
 // Start all scheduled tasks
 const startScheduler = () => {
     console.log('Starting CFB Pick\'em scheduler...');
+    // Update active week every Monday at 6 AM (start of new CFB week)
+    node_cron_1.default.schedule('0 6 * * 1', () => {
+        console.log('Monday: Updating active week...');
+        updateActiveWeek();
+    });
     // Fetch new games every Tuesday at 10 AM (prepare for upcoming week)
     node_cron_1.default.schedule('0 10 * * 2', () => {
         console.log('Running weekly games fetch...');
@@ -384,9 +407,10 @@ const startScheduler = () => {
         console.log('Checking for spread auto-lock...');
         autoLockSpreads();
     });
-    // Daily maintenance at 2 AM (clean up, calculate standings)
+    // Daily maintenance at 2 AM (clean up, calculate standings, update active week)
     node_cron_1.default.schedule('0 2 * * *', () => {
         console.log('Running daily maintenance...');
+        updateActiveWeek(); // Check active week daily
         (0, exports.updateGameScores)();
     });
     console.log('✅ Scheduler tasks registered');
