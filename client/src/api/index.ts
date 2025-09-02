@@ -148,6 +148,12 @@ export const adminApi = {
   
   fetchSpreads: () => api.post<{ message: string; updated: number; total: number }>('/admin/fetch-spreads'),
   
+  updateGameSpread: (gameId: number, data: { spread: number; favorite_team: string }) =>
+    api.post<{ message: string; spread: number; favorite_team: string }>(`/admin/update-game-spread/${gameId}`, data),
+  
+  clearGameSpread: (gameId: number) =>
+    api.delete<{ message: string }>(`/admin/clear-game-spread/${gameId}`),
+  
   previewGames: (year: number, week: number) =>
     api.get<any>(`/admin/preview-games/${year}/${week}`),
   

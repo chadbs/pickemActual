@@ -500,5 +500,82 @@ router.post('/update-active-week', async (req, res) => {
         res.status(500).json({ error: 'Failed to update active week' });
     }
 });
+// Update spread for a specific game (only if no spread exists)
+router.post('/update-game-spread/:game_id', async (req, res) => {
+    try {
+        const { game_id } = req.params;
+        const { spread, favorite_team } = req.body;
+        if (!spread || !favorite_team) {
+            return res.status(400).json({ error: 'Spread and favorite_team are required' });
+        }
+        // Get the current game
+        const game = await (0, database_1.getQuery)('SELECT * FROM games WHERE id = ? LIMIT 1', [game_id]);
+        if (!game) {
+            return res.status(404).json({ error: 'Game not found' });
+        }
+        // Check if game already has a spread (don't allow overriding API spreads)
+        if (game.spread !== null && game.spread !== undefined) {
+            return res.status(403).json({
+                error: 'Cannot update spread - game already has an online spread',
+                current_spread: game.spread,
+                current_favorite: game.favorite_team
+            });
+        }
+        // Check if spreads are locked for this week
+        const week = await (0, database_1.getQuery)('SELECT * FROM weeks WHERE id = ? LIMIT 1', [game.week_id]);
+        if (week?.spreads_locked) {
+            return res.status(423).json({
+                error: 'Cannot update spread - spreads are locked for this week',
+                week: week.week_number
+            });
+        }
+        // Update the game with manual spread
+        await (0, database_1.runQuery)('UPDATE games SET spread = ?, favorite_team = ? WHERE id = ?', [parseFloat(spread), favorite_team, game_id]);
+        console.log(`📝 Admin manually set spread for ${game.away_team} @ ${game.home_team}: ${favorite_team} -${spread}`);
+        res.json({
+            message: 'Spread updated successfully',
+            game: `${game.away_team} @ ${game.home_team}`,
+            spread: parseFloat(spread),
+            favorite_team: favorite_team,
+            updated_by: 'admin',
+            timestamp: new Date().toISOString()
+        });
+    }
+    catch (error) {
+        console.error('Error updating game spread:', error);
+        res.status(500).json({ error: 'Failed to update game spread' });
+    }
+});
+// Clear manual spread for a specific game (only if manually set)
+router.delete('/clear-game-spread/:game_id', async (req, res) => {
+    try {
+        const { game_id } = req.params;
+        // Get the current game
+        const game = await (0, database_1.getQuery)('SELECT * FROM games WHERE id = ? LIMIT 1', [game_id]);
+        if (!game) {
+            return res.status(404).json({ error: 'Game not found' });
+        }
+        // Check if spreads are locked for this week
+        const week = await (0, database_1.getQuery)('SELECT * FROM weeks WHERE id = ? LIMIT 1', [game.week_id]);
+        if (week?.spreads_locked) {
+            return res.status(423).json({
+                error: 'Cannot clear spread - spreads are locked for this week',
+                week: week.week_number
+            });
+        }
+        // Clear the manual spread
+        await (0, database_1.runQuery)('UPDATE games SET spread = NULL, favorite_team = NULL WHERE id = ?', [game_id]);
+        console.log(`🗑️ Admin cleared manual spread for ${game.away_team} @ ${game.home_team}`);
+        res.json({
+            message: 'Spread cleared successfully',
+            game: `${game.away_team} @ ${game.home_team}`,
+            timestamp: new Date().toISOString()
+        });
+    }
+    catch (error) {
+        console.error('Error clearing game spread:', error);
+        res.status(500).json({ error: 'Failed to clear game spread' });
+    }
+});
 exports.default = router;
 //# sourceMappingURL=admin-test.js.map

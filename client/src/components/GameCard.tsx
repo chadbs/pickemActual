@@ -1,6 +1,7 @@
 import React from 'react';
 import type { GameWithPick } from '../types';
 import { useCreatePick, useCurrentUser, useGamePicks } from '../hooks/useApi';
+import ManualSpreadInput from './ManualSpreadInput';
 
 interface GameCardProps {
   game: GameWithPick;
@@ -116,10 +117,25 @@ const GameCard: React.FC<GameCardProps> = ({
         </div>
       </div>
 
-      {/* Spread */}
-      {game.spread && (
+      {/* Spread / Manual Input */}
+      {game.spread ? (
         <div className="text-center mb-3 p-2 bg-gray-50 rounded text-base font-medium">
           Spread: {game.favorite_team} -{game.spread}
+        </div>
+      ) : (
+        <div className="text-center mb-3">
+          <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800 mb-2">
+            ⚠️ No spread available - Admin can set manually
+          </div>
+          <ManualSpreadInput
+            gameId={game.id}
+            homeTeam={game.home_team}
+            awayTeam={game.away_team}
+            currentSpread={game.spread}
+            currentFavorite={game.favorite_team}
+            hasOnlineSpread={false}
+            onSpreadUpdate={onPickUpdate || (() => {})}
+          />
         </div>
       )}
 
