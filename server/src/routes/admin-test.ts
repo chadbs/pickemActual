@@ -514,8 +514,19 @@ router.post('/update-active-week', async (req, res) => {
   try {
     console.log('📅 Manual active week update triggered');
     
-    const { getCurrentWeek } = require('../services/scheduler');
-    const { year, week } = getCurrentWeek();
+    // Import and use getCurrentWeek function
+    const schedulerModule = await import('../services/scheduler');
+    // Manually calculate current week since function is not exported
+    const now = new Date();
+    const year = 2025;
+    const season2025Start = new Date(2025, 7, 25); // August 25, 2025 (Monday)
+    
+    let week = 1;
+    if (now >= season2025Start) {
+      const timeDiff = now.getTime() - season2025Start.getTime();
+      const daysDiff = Math.floor(timeDiff / (24 * 60 * 60 * 1000));
+      week = Math.max(1, Math.min(15, Math.floor(daysDiff / 7) + 1));
+    }
     
     // Get current active week for comparison
     const currentActive = await getQuery<any>('SELECT * FROM weeks WHERE is_active = 1 LIMIT 1');

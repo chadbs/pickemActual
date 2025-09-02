@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -433,8 +466,18 @@ router.post('/cleanup-2024', async (req, res) => {
 router.post('/update-active-week', async (req, res) => {
     try {
         console.log('📅 Manual active week update triggered');
-        const { getCurrentWeek } = require('../services/scheduler');
-        const { year, week } = getCurrentWeek();
+        // Import and use getCurrentWeek function
+        const schedulerModule = await Promise.resolve().then(() => __importStar(require('../services/scheduler')));
+        // Manually calculate current week since function is not exported
+        const now = new Date();
+        const year = 2025;
+        const season2025Start = new Date(2025, 7, 25); // August 25, 2025 (Monday)
+        let week = 1;
+        if (now >= season2025Start) {
+            const timeDiff = now.getTime() - season2025Start.getTime();
+            const daysDiff = Math.floor(timeDiff / (24 * 60 * 60 * 1000));
+            week = Math.max(1, Math.min(15, Math.floor(daysDiff / 7) + 1));
+        }
         // Get current active week for comparison
         const currentActive = await (0, database_1.getQuery)('SELECT * FROM weeks WHERE is_active = 1 LIMIT 1');
         // Set all weeks as inactive first
