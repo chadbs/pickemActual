@@ -391,6 +391,30 @@ export const useCreateSeasonWeeks = () => {
   });
 };
 
+export const usePreviewOrphanedData = () => {
+  return useQuery({
+    queryKey: ['admin', 'orphaned-data'],
+    queryFn: () => adminApi.previewOrphanedData().then(res => res.data),
+    staleTime: 30 * 1000, // 30 seconds
+  });
+};
+
+export const useCleanupOrphanedData = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: () => adminApi.cleanupOrphanedData().then(res => res.data),
+    onSuccess: () => {
+      // Invalidate all user-related queries to refresh after cleanup
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+      queryClient.invalidateQueries({ queryKey: ['picks'] });
+      queryClient.invalidateQueries({ queryKey: ['admin'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'orphaned-data'] });
+    },
+  });
+};
+
 // ========== UTILITY HOOKS ==========
 
 export const useLocalStorage = <T>(key: string, initialValue: T) => {

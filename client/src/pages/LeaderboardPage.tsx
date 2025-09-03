@@ -27,7 +27,9 @@ import {
   useTeamInsights,
   useLeaderboardInsights,
   useConferenceInsights,
-  useCurrentUser
+  useCurrentUser,
+  usePreviewOrphanedData,
+  useCleanupOrphanedData
 } from '../hooks/useApi';
 
 type ViewMode = 'weekly' | 'season' | 'combined';
@@ -61,6 +63,10 @@ const LeaderboardPage: React.FC = () => {
   // User management data
   const { data: users = [] } = useUsers();
   const deleteUserMutation = useDeleteUser();
+  
+  // Data cleanup hooks
+  const { data: orphanedDataPreview, refetch: refetchOrphanedData } = usePreviewOrphanedData();
+  const cleanupOrphanedDataMutation = useCleanupOrphanedData();
   
   // Insights data
   const { data: teamInsights = [] } = useTeamInsights(selectedWeekData?.season_year);
@@ -101,6 +107,35 @@ const LeaderboardPage: React.FC = () => {
       } else {
         toast.error(error.response?.data?.error || 'Failed to delete user');
       }
+    }
+  };
+  
+  const handleCleanupOrphanedData = async () => {
+    if (!currentUser?.is_admin) {
+      toast.error('Only admins can cleanup data');
+      return;
+    }
+    
+    if (!orphanedDataPreview?.orphaned_data?.length) {
+      toast.error('No orphaned data found to cleanup');
+      return;
+    }
+    
+    const orphanCount = orphanedDataPreview.summary.orphaned_user_count;
+    const recordCount = orphanedDataPreview.summary.total_orphaned_records;
+    
+    const confirmed = window.confirm(
+      `Are you sure you want to cleanup orphaned data?\n\nThis will remove ${recordCount} records from ${orphanCount} deleted users.\n\nThis cannot be undone.`
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      const result = await cleanupOrphanedDataMutation.mutateAsync();
+      toast.success(result.message);
+      refetchOrphanedData(); // Refresh the preview data
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to cleanup orphaned data');
     }
   };
 
@@ -261,6 +296,60 @@ const LeaderboardPage: React.FC = () => {
               </div>
             ))}
           </div>
+          
+          {/* Orphaned Data Cleanup Section */}
+          {orphanedDataPreview && orphanedDataPreview.summary.orphaned_user_count > 0 && (
+            <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold text-yellow-800">
+                  🧹 Orphaned Data Detected
+                </h3>
+                <div className="text-sm text-yellow-700">
+                  {orphanedDataPreview.summary.total_orphaned_records} records to clean
+                </div>
+              </div>
+              
+              <p className="text-sm text-yellow-700 mb-4">
+                Found data from {orphanedDataPreview.summary.orphaned_user_count} users that no longer exist in the system. 
+                This old data may be showing up in your leaderboards. Click below to safely remove it.
+              </p>
+              
+              <div className="grid gap-2 max-h-32 overflow-y-auto mb-4">
+                {orphanedDataPreview.orphaned_data.slice(0, 5).map((orphan: any) => (
+                  <div key={orphan.user_id} className="text-xs bg-yellow-100 p-2 rounded border">
+                    <span className="font-medium">User ID {orphan.user_id}:</span>
+                    <span className="ml-2 text-yellow-600">
+                      {Object.entries(orphan.tables).map(([table, data]: [string, any]) => 
+                        `${data.count} ${table}`
+                      ).join(', ')}
+                    </span>
+                  </div>
+                ))}
+                {orphanedDataPreview.orphaned_data.length > 5 && (
+                  <div className="text-xs text-yellow-600">
+                    ... and {orphanedDataPreview.orphaned_data.length - 5} more users
+                  </div>
+                )}
+              </div>
+              
+              <button
+                onClick={handleCleanupOrphanedData}
+                disabled={cleanupOrphanedDataMutation.isPending}
+                className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200"
+              >
+                {cleanupOrphanedDataMutation.isPending ? 'Cleaning...' : 'Clean Up Orphaned Data'}
+              </button>
+            </div>
+          )}
+          
+          {orphanedDataPreview && orphanedDataPreview.summary.orphaned_user_count === 0 && (
+            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <span className="text-green-600">✅</span>
+                <span className="text-sm text-green-700 font-medium">No orphaned data found - database is clean!</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
       

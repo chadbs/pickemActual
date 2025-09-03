@@ -713,4 +713,214 @@ router.delete('/delete-user/:user_id', async (req, res) => {
   }
 });
 
+// Clean up orphaned user data (picks, leaderboard entries for users that no longer exist)
+router.post('/cleanup-orphaned-data', async (req, res) => {
+  try {
+    console.log('🧹 Starting orphaned data cleanup...');
+    
+    // Get all current valid user IDs
+    const currentUsers = await allQuery<any>('SELECT id FROM users');
+    const currentUserIds = currentUsers.map(u => u.id);
+    console.log(`Found ${currentUserIds.length} current users:`, currentUserIds);
+    
+    // Find orphaned picks (picks from users that no longer exist)
+    const orphanedPicks = await allQuery<any>(
+      `SELECT DISTINCT user_id, COUNT(*) as pick_count
+       FROM picks 
+       WHERE user_id NOT IN (${currentUserIds.map(() => '?').join(',')})
+       GROUP BY user_id`,
+      currentUserIds
+    );
+    
+    // Find orphaned weekly scores
+    const orphanedWeeklyScores = await allQuery<any>(
+      `SELECT DISTINCT user_id, COUNT(*) as score_count
+       FROM weekly_scores 
+       WHERE user_id NOT IN (${currentUserIds.map(() => '?').join(',')})
+       GROUP BY user_id`,
+      currentUserIds
+    );
+    
+    // Find orphaned season standings
+    const orphanedSeasonStandings = await allQuery<any>(
+      `SELECT DISTINCT user_id, COUNT(*) as standing_count
+       FROM season_standings 
+       WHERE user_id NOT IN (${currentUserIds.map(() => '?').join(',')})
+       GROUP BY user_id`,
+      currentUserIds
+    );
+    
+    let deletedCounts = {
+      picks: 0,
+      weekly_scores: 0,
+      season_standings: 0,
+      orphaned_users: new Set()
+    };
+    
+    // Collect all orphaned user IDs
+    [...orphanedPicks, ...orphanedWeeklyScores, ...orphanedSeasonStandings].forEach(item => {
+      deletedCounts.orphaned_users.add(item.user_id);
+    });
+    
+    if (deletedCounts.orphaned_users.size === 0) {
+      return res.json({
+        message: '✅ No orphaned data found - database is clean!',
+        details: {
+          current_users: currentUserIds.length,
+          orphaned_users: 0,
+          deleted: deletedCounts
+        }
+      });
+    }
+    
+    console.log(`Found orphaned data for ${deletedCounts.orphaned_users.size} deleted users:`, Array.from(deletedCounts.orphaned_users));
+    
+    // Delete orphaned picks
+    if (orphanedPicks.length > 0) {
+      const picksToDelete = orphanedPicks.map(p => p.user_id);
+      const pickResult = await runQuery(
+        `DELETE FROM picks WHERE user_id NOT IN (${currentUserIds.map(() => '?').join(',')})`,
+        currentUserIds
+      );
+      deletedCounts.picks = pickResult.changes || 0;
+      console.log(`Deleted ${deletedCounts.picks} orphaned picks`);
+    }
+    
+    // Delete orphaned weekly scores
+    if (orphanedWeeklyScores.length > 0) {
+      const weeklyResult = await runQuery(
+        `DELETE FROM weekly_scores WHERE user_id NOT IN (${currentUserIds.map(() => '?').join(',')})`,
+        currentUserIds
+      );
+      deletedCounts.weekly_scores = weeklyResult.changes || 0;
+      console.log(`Deleted ${deletedCounts.weekly_scores} orphaned weekly scores`);
+    }
+    
+    // Delete orphaned season standings
+    if (orphanedSeasonStandings.length > 0) {
+      const seasonResult = await runQuery(
+        `DELETE FROM season_standings WHERE user_id NOT IN (${currentUserIds.map(() => '?').join(',')})`,
+        currentUserIds
+      );
+      deletedCounts.season_standings = seasonResult.changes || 0;
+      console.log(`Deleted ${deletedCounts.season_standings} orphaned season standings`);
+    }
+    
+    const totalDeleted = deletedCounts.picks + deletedCounts.weekly_scores + deletedCounts.season_standings;
+    
+    res.json({
+      message: `🧹 Successfully cleaned up orphaned data! Removed ${totalDeleted} records from ${deletedCounts.orphaned_users.size} deleted users.`,
+      details: {
+        current_users: currentUserIds.length,
+        orphaned_users: Array.from(deletedCounts.orphaned_users),
+        deleted: {
+          picks: deletedCounts.picks,
+          weekly_scores: deletedCounts.weekly_scores,
+          season_standings: deletedCounts.season_standings,
+          total: totalDeleted
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error cleaning up orphaned data:', error);
+    res.status(500).json({ 
+      error: 'Failed to cleanup orphaned data',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Get orphaned data preview (to see what would be deleted without actually deleting)
+router.get('/preview-orphaned-data', async (req, res) => {
+  try {
+    // Get all current valid user IDs
+    const currentUsers = await allQuery<any>('SELECT id, name FROM users ORDER BY id');
+    const currentUserIds = currentUsers.map(u => u.id);
+    
+    if (currentUserIds.length === 0) {
+      return res.json({
+        message: 'No users found in system',
+        orphaned_data: []
+      });
+    }
+    
+    // Find orphaned data with details
+    const orphanedData = await allQuery<any>(
+      `SELECT 
+        'picks' as table_name,
+        p.user_id,
+        COUNT(*) as record_count,
+        MIN(p.created_at) as first_record,
+        MAX(p.created_at) as last_record
+       FROM picks p
+       WHERE p.user_id NOT IN (${currentUserIds.map(() => '?').join(',')})
+       GROUP BY p.user_id
+       
+       UNION ALL
+       
+       SELECT 
+        'weekly_scores' as table_name,
+        ws.user_id,
+        COUNT(*) as record_count,
+        MIN(ws.created_at) as first_record,
+        MAX(ws.updated_at) as last_record
+       FROM weekly_scores ws
+       WHERE ws.user_id NOT IN (${currentUserIds.map(() => '?').join(',')})
+       GROUP BY ws.user_id
+       
+       UNION ALL
+       
+       SELECT 
+        'season_standings' as table_name,
+        ss.user_id,
+        COUNT(*) as record_count,
+        MIN(ss.created_at) as first_record,
+        MAX(ss.updated_at) as last_record
+       FROM season_standings ss
+       WHERE ss.user_id NOT IN (${currentUserIds.map(() => '?').join(',')})
+       GROUP BY ss.user_id
+       
+       ORDER BY user_id, table_name`,
+      [...currentUserIds, ...currentUserIds, ...currentUserIds]
+    );
+    
+    // Group by user_id for easier reading
+    const groupedOrphans: { [key: string]: any } = {};
+    orphanedData.forEach(item => {
+      if (!groupedOrphans[item.user_id]) {
+        groupedOrphans[item.user_id] = {
+          user_id: item.user_id,
+          tables: {},
+          total_records: 0
+        };
+      }
+      groupedOrphans[item.user_id].tables[item.table_name] = {
+        count: item.record_count,
+        first_record: item.first_record,
+        last_record: item.last_record
+      };
+      groupedOrphans[item.user_id].total_records += item.record_count;
+    });
+    
+    res.json({
+      message: `Found orphaned data for ${Object.keys(groupedOrphans).length} deleted users`,
+      current_users: currentUsers,
+      orphaned_data: Object.values(groupedOrphans),
+      summary: {
+        current_user_count: currentUsers.length,
+        orphaned_user_count: Object.keys(groupedOrphans).length,
+        total_orphaned_records: Object.values(groupedOrphans).reduce((sum: number, user: any) => sum + user.total_records, 0)
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error previewing orphaned data:', error);
+    res.status(500).json({ 
+      error: 'Failed to preview orphaned data',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;

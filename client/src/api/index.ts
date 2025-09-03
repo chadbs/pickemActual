@@ -178,6 +178,10 @@ export const adminApi = {
   
   createSeasonWeeks: (year?: number) => api.post<{ message: string; weeks: any[]; season_year: number }>('/admin/create-season-weeks', { year }),
   
+  previewOrphanedData: () => api.get<any>('/admin/preview-orphaned-data'),
+  
+  cleanupOrphanedData: () => api.post<{ message: string; details: any }>('/admin/cleanup-orphaned-data'),
+  
   getAPIUsage: () => api.get<any>('/admin/api-usage'),
   
   maintenance: (action: string) =>
