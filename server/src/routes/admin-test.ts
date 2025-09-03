@@ -655,4 +655,62 @@ router.delete('/clear-game-spread/:game_id', async (req, res) => {
   }
 });
 
+// Delete a user and all their associated data
+router.delete('/delete-user/:user_id', async (req, res) => {
+  try {
+    const { user_id } = req.params;
+    
+    // Get the user first to confirm they exist and get their name
+    const user = await getQuery<any>('SELECT * FROM users WHERE id = ? LIMIT 1', [user_id]);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Prevent deletion of admin users (safety check)
+    if (user.is_admin) {
+      return res.status(403).json({ 
+        error: 'Cannot delete admin users',
+        user_name: user.name
+      });
+    }
+    
+    // Start transaction to ensure data consistency
+    await runQuery('BEGIN TRANSACTION');
+    
+    try {
+      // Delete user's picks first (foreign key constraint)
+      const picksDeleted = await runQuery('DELETE FROM picks WHERE user_id = ?', [user_id]);
+      
+      // Delete the user
+      const userDeleted = await runQuery('DELETE FROM users WHERE id = ?', [user_id]);
+      
+      // Commit transaction
+      await runQuery('COMMIT');
+      
+      console.log(`🗑️ Admin deleted user: ${user.name} (ID: ${user_id})`);
+      console.log(`   - Picks deleted: ${picksDeleted.changes}`);
+      
+      res.json({
+        message: `🗑️ User "${user.name}" deleted successfully!`,
+        deleted_user: {
+          id: parseInt(user_id),
+          name: user.name,
+          email: user.email
+        },
+        picks_deleted: picksDeleted.changes,
+        timestamp: new Date().toISOString()
+      });
+      
+    } catch (error) {
+      // Rollback transaction on error
+      await runQuery('ROLLBACK');
+      throw error;
+    }
+    
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
 export default router;

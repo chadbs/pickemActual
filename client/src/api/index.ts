@@ -154,6 +154,9 @@ export const adminApi = {
   clearGameSpread: (gameId: number) =>
     api.delete<{ message: string }>(`/admin/clear-game-spread/${gameId}`),
   
+  deleteUser: (userId: number) =>
+    api.delete<{ message: string; deleted_user: any; picks_deleted: number }>(`/admin/delete-user/${userId}`),
+  
   previewGames: (year: number, week: number) =>
     api.get<any>(`/admin/preview-games/${year}/${week}`),
   

@@ -322,6 +322,21 @@ export const useRecalculateScores = () => {
   });
 };
 
+export const useDeleteUser = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (userId: number) => adminApi.deleteUser(userId).then(res => res.data),
+    onSuccess: () => {
+      // Invalidate related queries to refresh user data
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['picks'] });
+      queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+      queryClient.invalidateQueries({ queryKey: ['admin'] });
+    },
+  });
+};
+
 export const useResetApp = () => {
   const queryClient = useQueryClient();
   

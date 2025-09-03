@@ -11,6 +11,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 import LoadingSpinner, { ButtonSpinner } from '../components/LoadingSpinner';
+import { useToast } from '../components/Toast';
 import { 
   useAdminDashboard,
   useFetchGames,
@@ -18,18 +19,23 @@ import {
   useRecalculateScores,
   useResetApp,
   useCreateSeasonWeeks,
-  useCurrentUser
+  useCurrentUser,
+  useUsers,
+  useDeleteUser
 } from '../hooks/useApi';
 
 const AdminPage: React.FC = () => {
   const { currentUser } = useCurrentUser();
+  const { showToast, ToastContainer } = useToast();
   
   const { data: dashboard, isLoading: dashboardLoading } = useAdminDashboard();
+  const { data: users, isLoading: usersLoading } = useUsers();
   const fetchGamesMutation = useFetchGames();
   const updateScoresMutation = useUpdateScores();
   const recalculateScoresMutation = useRecalculateScores();
   const resetAppMutation = useResetApp();
   const createSeasonWeeksMutation = useCreateSeasonWeeks();
+  const deleteUserMutation = useDeleteUser();
 
   // Check if user is admin
   if (!currentUser?.is_admin) {
@@ -52,21 +58,49 @@ const AdminPage: React.FC = () => {
     );
   }
 
+  const handleDeleteUser = async (user: any) => {
+    const confirmed = confirm(
+      `Are you sure you want to delete user "${user.name}"?\n\n` +
+      `This will permanently remove:\n` +
+      `• The user account\n` +
+      `• All their picks and history\n\n` +
+      `This action cannot be undone.`
+    );
+    
+    if (confirmed) {
+      try {
+        const result = await deleteUserMutation.mutateAsync(user.id);
+        showToast({
+          message: `🗑️ User "${user.name}" deleted successfully! ${result.picks_deleted} picks removed.`,
+          type: 'success'
+        });
+      } catch (error: any) {
+        const message = error.response?.status === 403
+          ? '🚫 Cannot delete admin users'
+          : error.response?.status === 404
+          ? '❌ User not found'
+          : '❌ Failed to delete user. Please try again.';
+        
+        showToast({ message, type: 'error' });
+      }
+    }
+  };
+
   const handleFetchGames = async () => {
     try {
       await fetchGamesMutation.mutateAsync();
-      alert('Games fetched successfully!');
+      showToast({ message: '🎮 Games fetched successfully!', type: 'success' });
     } catch (error) {
-      alert('Failed to fetch games. Check console for details.');
+      showToast({ message: '❌ Failed to fetch games. Check console for details.', type: 'error' });
     }
   };
 
   const handleUpdateScores = async () => {
     try {
       await updateScoresMutation.mutateAsync();
-      alert('Scores updated successfully!');
+      showToast({ message: '📊 Scores updated successfully!', type: 'success' });
     } catch (error) {
-      alert('Failed to update scores. Check console for details.');
+      showToast({ message: '❌ Failed to update scores. Check console for details.', type: 'error' });
     }
   };
 
@@ -74,9 +108,9 @@ const AdminPage: React.FC = () => {
     if (confirm('This will recalculate all scores and standings. Are you sure?')) {
       try {
         await recalculateScoresMutation.mutateAsync();
-        alert('Scores recalculated successfully!');
+        showToast({ message: '🔄 Scores recalculated successfully!', type: 'success' });
       } catch (error) {
-        alert('Failed to recalculate scores. Check console for details.');
+        showToast({ message: '❌ Failed to recalculate scores. Check console for details.', type: 'error' });
       }
     }
   };
@@ -89,9 +123,12 @@ const AdminPage: React.FC = () => {
       const year = parseInt(yearInput);
       try {
         const result = await createSeasonWeeksMutation.mutateAsync(year);
-        alert(`✅ Created ${result.weeks.length} weeks for ${result.season_year} season!\n\nYou can now navigate between weeks using the week selector.`);
+        showToast({ 
+          message: `✅ Created ${result.weeks.length} weeks for ${result.season_year} season!`, 
+          type: 'success' 
+        });
       } catch (error) {
-        alert('Failed to create season weeks. Check console for details.');
+        showToast({ message: '❌ Failed to create season weeks. Check console for details.', type: 'error' });
       }
     }
   };
@@ -107,13 +144,13 @@ const AdminPage: React.FC = () => {
     if (userConfirm === confirmText) {
       try {
         await resetAppMutation.mutateAsync();
-        alert('🔥 App reset successfully! All user data has been cleared.');
-        window.location.reload(); // Reload to clear user state
+        showToast({ message: '🔥 App reset successfully! All user data has been cleared.', type: 'success' });
+        setTimeout(() => window.location.reload(), 2000); // Reload after showing toast
       } catch (error) {
-        alert('Failed to reset app. Check console for details.');
+        showToast({ message: '❌ Failed to reset app. Check console for details.', type: 'error' });
       }
     } else if (userConfirm !== null) {
-      alert('Reset cancelled - confirmation text did not match.');
+      showToast({ message: '⚠️ Reset cancelled - confirmation text did not match.', type: 'error' });
     }
   };
 
@@ -126,16 +163,18 @@ const AdminPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="text-center">
-        <h1 className="text-4xl font-cfb-display font-bold text-gray-900 mb-2">
-          Admin Dashboard
-        </h1>
-        <p className="text-gray-600">
-          Manage games, users, and system settings
-        </p>
-      </div>
+    <>
+      <ToastContainer />
+      <div className="space-y-8">
+        {/* Header */}
+        <div className="text-center">
+          <h1 className="text-4xl font-cfb-display font-bold text-gray-900 mb-2">
+            Admin Dashboard
+          </h1>
+          <p className="text-gray-600">
+            Manage games, users, and system settings
+          </p>
+        </div>
 
       {/* Quick Stats */}
       {dashboard && (
@@ -219,6 +258,88 @@ const AdminPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* User Management */}
+      <div className="admin-card">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-cfb-display font-bold text-gray-900">
+              User Management
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Manage registered users and remove test accounts
+            </p>
+          </div>
+          <div className="text-sm text-gray-500">
+            {users?.length || 0} total users
+          </div>
+        </div>
+
+        {usersLoading ? (
+          <div className="flex justify-center py-8">
+            <LoadingSpinner size="md" text="Loading users..." />
+          </div>
+        ) : users && users.length > 0 ? (
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {users.map((user: any) => (
+              <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-3 h-3 rounded-full ${user.is_admin ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                  <div>
+                    <div className="font-medium text-gray-900 flex items-center space-x-2">
+                      <span>{user.name}</span>
+                      {user.is_admin && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                          Admin
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      ID: {user.id} • Created: {new Date(user.created_at).toLocaleDateString()}
+                      {user.email && ` • ${user.email}`}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  {!user.is_admin ? (
+                    <button
+                      onClick={() => handleDeleteUser(user)}
+                      disabled={deleteUserMutation.isPending}
+                      className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-md transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {deleteUserMutation.isPending ? (
+                        <ButtonSpinner />
+                      ) : (
+                        <>
+                          <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Delete
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <span className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-500 bg-gray-200 rounded-md">
+                      Protected
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <UserGroupIcon className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+            <p>No users found</p>
+          </div>
+        )}
+
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <div className="text-xs text-gray-500">
+            💡 <strong>Tip:</strong> Admin users are protected from deletion. Only regular users can be removed.
+          </div>
+        </div>
+      </div>
 
       {/* Quick Actions */}
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -412,6 +533,7 @@ const AdminPage: React.FC = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 
