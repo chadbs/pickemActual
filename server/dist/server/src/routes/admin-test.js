@@ -533,10 +533,11 @@ router.post('/update-game-spread/:game_id', async (req, res) => {
         await (0, database_1.runQuery)('UPDATE games SET spread = ?, favorite_team = ? WHERE id = ?', [parseFloat(spread), favorite_team, game_id]);
         console.log(`📝 Admin manually set spread for ${game.away_team} @ ${game.home_team}: ${favorite_team} -${spread}`);
         res.json({
-            message: 'Spread updated successfully',
+            message: '🎯 Manual spread set successfully!',
             game: `${game.away_team} @ ${game.home_team}`,
             spread: parseFloat(spread),
             favorite_team: favorite_team,
+            preview: `${favorite_team} -${spread}`,
             updated_by: 'admin',
             timestamp: new Date().toISOString()
         });
@@ -567,8 +568,9 @@ router.delete('/clear-game-spread/:game_id', async (req, res) => {
         await (0, database_1.runQuery)('UPDATE games SET spread = NULL, favorite_team = NULL WHERE id = ?', [game_id]);
         console.log(`🗑️ Admin cleared manual spread for ${game.away_team} @ ${game.home_team}`);
         res.json({
-            message: 'Spread cleared successfully',
+            message: '🗑️ Manual spread cleared successfully!',
             game: `${game.away_team} @ ${game.home_team}`,
+            action: 'cleared',
             timestamp: new Date().toISOString()
         });
     }

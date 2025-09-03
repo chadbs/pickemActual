@@ -601,10 +601,11 @@ router.post('/update-game-spread/:game_id', async (req, res) => {
     console.log(`📝 Admin manually set spread for ${game.away_team} @ ${game.home_team}: ${favorite_team} -${spread}`);
     
     res.json({
-      message: 'Spread updated successfully',
+      message: '🎯 Manual spread set successfully!',
       game: `${game.away_team} @ ${game.home_team}`,
       spread: parseFloat(spread),
       favorite_team: favorite_team,
+      preview: `${favorite_team} -${spread}`,
       updated_by: 'admin',
       timestamp: new Date().toISOString()
     });
@@ -643,8 +644,9 @@ router.delete('/clear-game-spread/:game_id', async (req, res) => {
     console.log(`🗑️ Admin cleared manual spread for ${game.away_team} @ ${game.home_team}`);
     
     res.json({
-      message: 'Spread cleared successfully',
+      message: '🗑️ Manual spread cleared successfully!',
       game: `${game.away_team} @ ${game.home_team}`,
+      action: 'cleared',
       timestamp: new Date().toISOString()
     });
   } catch (error) {

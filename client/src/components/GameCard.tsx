@@ -119,13 +119,22 @@ const GameCard: React.FC<GameCardProps> = ({
 
       {/* Spread / Manual Input */}
       {game.spread ? (
-        <div className="text-center mb-3 p-2 bg-gray-50 rounded text-base font-medium">
-          Spread: {game.favorite_team} -{game.spread}
+        <div className="text-center mb-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg shadow-sm">
+          <div className="text-base font-semibold text-green-800">
+            <span className="mr-2">🎯</span>
+            Spread: {game.favorite_team} -{game.spread}
+          </div>
         </div>
       ) : (
-        <div className="text-center mb-3">
-          <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800 mb-2">
-            ⚠️ No spread available - Admin can set manually
+        <div className="mb-3">
+          <div className="text-center p-3 bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-lg shadow-sm mb-3">
+            <div className="flex items-center justify-center space-x-2 text-amber-800">
+              <span className="text-lg">⚠️</span>
+              <span className="text-sm font-medium">No spread available</span>
+            </div>
+            <div className="text-xs text-amber-600 mt-1">
+              Admins can set a manual spread below
+            </div>
           </div>
           <ManualSpreadInput
             gameId={game.id}
