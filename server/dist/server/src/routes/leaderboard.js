@@ -75,6 +75,7 @@ router.get('/season', async (req, res) => {
     try {
         const { year } = req.query;
         const currentYear = year || new Date().getFullYear();
+        // Only show users that actually exist in the users table
         const leaderboard = await (0, database_1.allQuery)(`SELECT 
          u.id as user_id,
          u.name,
@@ -105,6 +106,7 @@ router.get('/season', async (req, res) => {
 router.get('/combined', async (req, res) => {
     try {
         const currentYear = new Date().getFullYear();
+        // Only show users that currently exist in the users table
         const combined = await (0, database_1.allQuery)(`SELECT 
          u.id as user_id,
          u.name,
@@ -166,6 +168,11 @@ router.get('/user/:userId/history', async (req, res) => {
         const { userId } = req.params;
         const { year } = req.query;
         const currentYear = year || new Date().getFullYear();
+        // Ensure the requested user exists before showing history
+        const userExists = await (0, database_1.getQuery)('SELECT id FROM users WHERE id = ? LIMIT 1', [userId]);
+        if (!userExists) {
+            return res.status(404).json({ error: 'User not found' });
+        }
         const history = await (0, database_1.allQuery)(`SELECT 
          w.week_number,
          w.season_year,
@@ -178,7 +185,7 @@ router.get('/user/:userId/history', async (req, res) => {
        FROM weeks w
        LEFT JOIN weekly_scores ws ON w.id = ws.week_id AND ws.user_id = ?
        LEFT JOIN weekly_scores ws2 ON w.id = ws2.week_id
-       LEFT JOIN users u2 ON ws2.user_id = u2.id
+       INNER JOIN users u2 ON ws2.user_id = u2.id
        WHERE w.season_year = ?
        GROUP BY w.id, w.week_number, w.season_year, w.deadline, ws.correct_picks, ws.total_picks, ws.percentage, ws.weekly_rank
        ORDER BY w.week_number ASC`, [userId, currentYear]);
@@ -213,7 +220,7 @@ router.get('/head-to-head/:userId1/:userId2', async (req, res) => {
         const { userId1, userId2 } = req.params;
         const { year } = req.query;
         const currentYear = year || new Date().getFullYear();
-        // Get both users' weekly performances
+        // Get both users' weekly performances - ensure both users exist
         const comparison = await (0, database_1.allQuery)(`SELECT 
          w.week_number,
          w.season_year,
@@ -232,7 +239,9 @@ router.get('/head-to-head/:userId1/:userId2', async (req, res) => {
        LEFT JOIN weekly_scores ws2 ON w.id = ws2.week_id AND ws2.user_id = ?
        LEFT JOIN users u1 ON ws1.user_id = u1.id
        LEFT JOIN users u2 ON ws2.user_id = u2.id
-       WHERE w.season_year = ? AND (ws1.user_id IS NOT NULL OR ws2.user_id IS NOT NULL)
+       WHERE w.season_year = ? 
+         AND (ws1.user_id IS NOT NULL OR ws2.user_id IS NOT NULL)
+         AND (u1.id IS NOT NULL OR u2.id IS NOT NULL)
        ORDER BY w.week_number ASC`, [userId1, userId2, currentYear]);
         // Calculate head-to-head stats
         let user1Wins = 0;
@@ -533,9 +542,9 @@ router.get('/insights', async (req, res) => {
     try {
         const { year } = req.query;
         const currentYear = year || new Date().getFullYear();
-        // Get various fun statistics
+        // Get various fun statistics - only count actual users that exist in the users table
         const insights = await (0, database_1.getQuery)(`SELECT 
-         -- Basic stats
+         -- Basic stats - only count users that currently exist
          COUNT(DISTINCT u.id) as total_players,
          COUNT(DISTINCT g.id) as total_games,
          COUNT(DISTINCT p.id) as total_picks,
@@ -549,7 +558,7 @@ router.get('/insights', async (req, res) => {
            COUNT(CASE WHEN p.is_correct IS NOT NULL THEN 1 END), 1
          ) as overall_accuracy,
          
-         -- Perfect weeks
+         -- Perfect weeks - only from current users
          COUNT(DISTINCT CASE WHEN ws.percentage = 100 THEN ws.id END) as perfect_weeks,
          
          -- Game outcomes
@@ -567,11 +576,11 @@ router.get('/insights', async (req, res) => {
          MIN(g.home_score + g.away_score) as lowest_scoring_game
          
        FROM users u
-       LEFT JOIN picks p ON u.id = p.user_id
+       INNER JOIN picks p ON u.id = p.user_id
        LEFT JOIN games g ON p.game_id = g.id
        LEFT JOIN weeks w ON g.week_id = w.id AND w.season_year = ?
        LEFT JOIN weekly_scores ws ON u.id = ws.user_id AND ws.week_id = w.id`, [currentYear]);
-        // Get most picked teams
+        // Get most picked teams - only from current users
         const mostPickedTeams = await (0, database_1.allQuery)(`SELECT 
          p.selected_team,
          COUNT(*) as pick_count,
@@ -581,6 +590,7 @@ router.get('/insights', async (req, res) => {
            COUNT(CASE WHEN p.is_correct IS NOT NULL THEN 1 END), 1
          ) as success_rate
        FROM picks p
+       INNER JOIN users u ON p.user_id = u.id
        JOIN games g ON p.game_id = g.id
        JOIN weeks w ON g.week_id = w.id
        WHERE w.season_year = ? AND p.is_correct IS NOT NULL
