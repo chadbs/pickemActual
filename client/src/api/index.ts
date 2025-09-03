@@ -130,6 +130,15 @@ export const leaderboardApi = {
   getHeadToHead: (userId1: number, userId2: number, year?: number) =>
     api.get<any>(`/leaderboard/head-to-head/${userId1}/${userId2}`, { params: { year } }),
   
+  getTeamInsights: (year?: number) =>
+    api.get<any[]>(`/leaderboard/team-insights`, { params: { year } }),
+  
+  getInsights: (year?: number) =>
+    api.get<any>(`/leaderboard/insights`, { params: { year } }),
+  
+  getConferenceInsights: (year?: number) =>
+    api.get<any>(`/leaderboard/conference-insights`, { params: { year } }),
+  
   getStats: (year?: number) =>
     api.get<any>('/leaderboard/stats', { params: { year } }),
 };

@@ -195,6 +195,30 @@ export const useHeadToHead = (userId1: number, userId2: number, year?: number) =
   });
 };
 
+export const useTeamInsights = (year?: number) => {
+  return useQuery({
+    queryKey: ['teamInsights', year],
+    queryFn: () => leaderboardApi.getTeamInsights(year).then(res => res.data),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};
+
+export const useLeaderboardInsights = (year?: number) => {
+  return useQuery({
+    queryKey: ['leaderboardInsights', year],
+    queryFn: () => leaderboardApi.getInsights(year).then(res => res.data),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};
+
+export const useConferenceInsights = (year?: number) => {
+  return useQuery({
+    queryKey: ['conferenceInsights', year],
+    queryFn: () => leaderboardApi.getConferenceInsights(year).then(res => res.data),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};
+
 // ========== COMBINED DATA HOOKS ==========
 
 export const useCurrentWeekData = (userId?: number) => {
