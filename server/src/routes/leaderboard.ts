@@ -619,44 +619,44 @@ router.get('/insights', async (req, res) => {
     const { year } = req.query;
     const currentYear = year || new Date().getFullYear();
     
-    // Get various fun statistics - only count actual users that exist in the users table
+    // Get various fun statistics - show game stats but only count current users
     const insights = await getQuery<any>(
       `SELECT 
-         -- Basic stats - only count users that currently exist
-         COUNT(DISTINCT u.id) as total_players,
+         -- Basic stats - count current users
+         (SELECT COUNT(*) FROM users) as total_players,
          COUNT(DISTINCT g.id) as total_games,
          COUNT(DISTINCT p.id) as total_picks,
          COUNT(DISTINCT w.id) as total_weeks,
          
-         -- Accuracy stats
-         COUNT(CASE WHEN p.is_correct = 1 THEN 1 END) as correct_picks,
-         COUNT(CASE WHEN p.is_correct = 0 THEN 1 END) as incorrect_picks,
+         -- Accuracy stats - only from current users
+         COUNT(CASE WHEN p.is_correct = 1 AND u.id IS NOT NULL THEN 1 END) as correct_picks,
+         COUNT(CASE WHEN p.is_correct = 0 AND u.id IS NOT NULL THEN 1 END) as incorrect_picks,
          ROUND(
-           (COUNT(CASE WHEN p.is_correct = 1 THEN 1 END) * 100.0) / 
-           COUNT(CASE WHEN p.is_correct IS NOT NULL THEN 1 END), 1
+           (COUNT(CASE WHEN p.is_correct = 1 AND u.id IS NOT NULL THEN 1 END) * 100.0) / 
+           NULLIF(COUNT(CASE WHEN p.is_correct IS NOT NULL AND u.id IS NOT NULL THEN 1 END), 0), 1
          ) as overall_accuracy,
          
          -- Perfect weeks - only from current users
-         COUNT(DISTINCT CASE WHEN ws.percentage = 100 THEN ws.id END) as perfect_weeks,
+         COUNT(DISTINCT CASE WHEN ws.percentage = 100 AND u.id IS NOT NULL THEN ws.id END) as perfect_weeks,
          
-         -- Game outcomes
+         -- Game outcomes - all games regardless of picks
          COUNT(CASE WHEN g.status = 'completed' THEN 1 END) as completed_games,
          COUNT(CASE WHEN g.spread IS NOT NULL AND g.status = 'completed' THEN 1 END) as games_with_spreads,
          
-         -- Spread statistics
-         AVG(ABS(g.spread)) as avg_spread_size,
-         MAX(ABS(g.spread)) as largest_spread,
-         MIN(ABS(g.spread)) as smallest_spread,
+         -- Spread statistics - all completed games
+         AVG(CASE WHEN g.status = 'completed' THEN ABS(g.spread) END) as avg_spread_size,
+         MAX(CASE WHEN g.status = 'completed' THEN ABS(g.spread) END) as largest_spread,
+         MIN(CASE WHEN g.status = 'completed' THEN ABS(g.spread) END) as smallest_spread,
          
-         -- Score statistics  
-         AVG(g.home_score + g.away_score) as avg_total_points,
-         MAX(g.home_score + g.away_score) as highest_scoring_game,
-         MIN(g.home_score + g.away_score) as lowest_scoring_game
+         -- Score statistics - all completed games
+         AVG(CASE WHEN g.status = 'completed' THEN g.home_score + g.away_score END) as avg_total_points,
+         MAX(CASE WHEN g.status = 'completed' THEN g.home_score + g.away_score END) as highest_scoring_game,
+         MIN(CASE WHEN g.status = 'completed' THEN g.home_score + g.away_score END) as lowest_scoring_game
          
-       FROM users u
-       INNER JOIN picks p ON u.id = p.user_id
-       LEFT JOIN games g ON p.game_id = g.id
+       FROM games g
        LEFT JOIN weeks w ON g.week_id = w.id AND w.season_year = ?
+       LEFT JOIN picks p ON g.id = p.game_id
+       LEFT JOIN users u ON p.user_id = u.id
        LEFT JOIN weekly_scores ws ON u.id = ws.user_id AND ws.week_id = w.id`,
       [currentYear]
     );
