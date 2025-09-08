@@ -128,16 +128,36 @@ router.get('/preview-games/:year/:week', async (req, res) => {
     const { year, week } = req.params;
     console.log(`🎯 Preview games requested for ${year} week ${week}`);
     
-    const cfbdGames = await getTopGamesForWeek(parseInt(year), parseInt(week));
-    
-    // Try to get odds
-    let gamesWithOdds = cfbdGames;
+    let cfbdGames: any[] = [];
     try {
-      const rawOdds = await getNCAAFootballOdds();
-      const parsedOdds = parseOddsData(rawOdds);
-      gamesWithOdds = matchOddsToGames(cfbdGames, parsedOdds);
-    } catch (error) {
-      console.warn('Could not fetch odds for preview:', error);
+      cfbdGames = await getTopGamesForWeek(parseInt(year), parseInt(week));
+    } catch (apiError: any) {
+      console.warn('CFBD API Error (likely rate limit):', apiError.message);
+      
+      // Return a fallback message when API is rate limited
+      if (apiError.message?.includes('429') || apiError.message?.includes('quota')) {
+        return res.json({
+          games: [],
+          week_info: { year: parseInt(year), week: parseInt(week) },
+          error: 'College Football Data API quota exceeded. Please try again later or contact support.',
+          api_limited: true
+        });
+      }
+      
+      // For other API errors, return empty games list
+      console.error('Failed to fetch games from CFBD API:', apiError);
+    }
+    
+    // Try to get odds if we have games
+    let gamesWithOdds = cfbdGames;
+    if (cfbdGames.length > 0) {
+      try {
+        const rawOdds = await getNCAAFootballOdds();
+        const parsedOdds = parseOddsData(rawOdds);
+        gamesWithOdds = matchOddsToGames(cfbdGames, parsedOdds);
+      } catch (error) {
+        console.warn('Could not fetch odds for preview:', error);
+      }
     }
     
     res.json({
