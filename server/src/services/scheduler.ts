@@ -57,9 +57,74 @@ const updateActiveWeek = async (): Promise<void> => {
       console.log(`✅ Updated active week to Week ${week} of ${year}`);
     } else {
       console.log(`⚠️ Week ${week} of ${year} not found in database - may need to be created`);
+      // Fallback: Ensure we always have an active week
+      await ensureActiveWeekExists(year);
     }
   } catch (error) {
     console.error('Error updating active week:', error);
+    // Fallback: Ensure we always have an active week even if update fails
+    await ensureActiveWeekExists(year);
+  }
+};
+
+// Fallback to ensure there's always an active week
+export const ensureActiveWeekExists = async (year: number): Promise<void> => {
+  try {
+    // Check if any week is currently active
+    const activeWeek = await getQuery<Week>(
+      'SELECT * FROM weeks WHERE is_active = 1 AND season_year = ?',
+      [year]
+    );
+    
+    if (activeWeek) {
+      console.log(`✅ Active week already exists: Week ${activeWeek.week_number}`);
+      return;
+    }
+    
+    console.log('⚠️ No active week found, setting fallback...');
+    
+    // Find the week closest to today's date
+    const allWeeks = await allQuery<Week>(
+      'SELECT * FROM weeks WHERE season_year = ? ORDER BY week_number ASC',
+      [year]
+    );
+    
+    if (allWeeks.length === 0) {
+      console.log('No weeks exist in database - this should not happen');
+      return;
+    }
+    
+    // Calculate current week using simpler logic
+    const now = new Date();
+    const currentMonth = now.getMonth(); // 0-11
+    const currentDate = now.getDate();
+    
+    let fallbackWeek = 1;
+    
+    // Simple month-based fallback logic
+    if (currentMonth === 7) { // August - Week 1-2
+      fallbackWeek = currentDate > 31 ? 2 : 1;
+    } else if (currentMonth === 8) { // September - Week 2-5  
+      fallbackWeek = Math.min(5, Math.floor(currentDate / 7) + 2);
+    } else if (currentMonth === 9) { // October - Week 6-9
+      fallbackWeek = Math.min(9, Math.floor(currentDate / 7) + 6);
+    } else if (currentMonth === 10) { // November - Week 10-13
+      fallbackWeek = Math.min(13, Math.floor(currentDate / 7) + 10);
+    } else if (currentMonth <= 6) { // Jan-July: Use Week 1 (pre-season)
+      fallbackWeek = 1;
+    } else { // December: Use Week 13
+      fallbackWeek = 13;
+    }
+    
+    // Make sure the week exists in database
+    const targetWeek = allWeeks.find(w => w.week_number === fallbackWeek) || allWeeks[0];
+    
+    await runQuery('UPDATE weeks SET is_active = 1 WHERE id = ?', [targetWeek.id]);
+    
+    console.log(`✅ Set fallback active week: Week ${targetWeek.week_number} of ${year}`);
+    
+  } catch (error) {
+    console.error('Error in ensureActiveWeekExists:', error);
   }
 };
 
@@ -535,18 +600,33 @@ export const startScheduler = (): void => {
     updateGameScores();
   });
   
+  // Ensure active week every 6 hours (safety net)
+  cron.schedule('0 */6 * * *', () => {
+    console.log('Safety check: Ensuring active week exists...');
+    ensureActiveWeekExists(2025);
+  });
+  
   console.log('✅ Scheduler tasks registered');
   
-  // Run initial fetch on startup if no games exist
+  // Run initial checks on startup
   setTimeout(async () => {
     try {
+      // CRITICAL: Ensure there's always an active week on startup
+      console.log('🔄 Startup: Ensuring active week exists...');
+      await ensureActiveWeekExists(2025);
+      
+      // Check if we need to fetch games
       const gameCount = await getQuery<{ count: number }>('SELECT COUNT(*) as count FROM games');
       if (!gameCount || gameCount.count === 0) {
         console.log('No games found, running initial fetch...');
         await fetchWeeklyGames();
       }
+      
+      console.log('🏈 Scheduler startup complete');
     } catch (error) {
-      console.error('Error in initial game check:', error);
+      console.error('Error in scheduler startup:', error);
+      // Even if other things fail, ensure we have an active week
+      await ensureActiveWeekExists(2025);
     }
-  }, 5000); // Wait 5 seconds after startup
+  }, 3000); // Wait 3 seconds after startup
 };

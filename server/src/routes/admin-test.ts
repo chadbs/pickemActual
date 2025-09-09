@@ -943,4 +943,35 @@ router.get('/preview-orphaned-data', async (req, res) => {
   }
 });
 
+// Manual active week check endpoint
+router.post('/ensure-active-week', async (req, res) => {
+  try {
+    console.log('🔄 Manual active week check triggered');
+    
+    // Import the ensureActiveWeekExists function (we need to make it available)
+    const { ensureActiveWeekExists } = await import('../services/scheduler');
+    await ensureActiveWeekExists(2025);
+    
+    // Get current active week to confirm
+    const activeWeek = await getQuery<any>(
+      'SELECT * FROM weeks WHERE is_active = 1 AND season_year = 2025'
+    );
+    
+    res.json({
+      success: true,
+      message: 'Active week check completed',
+      active_week: activeWeek || null,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error in manual active week check:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to ensure active week',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;
