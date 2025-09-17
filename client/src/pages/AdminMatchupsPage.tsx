@@ -27,6 +27,8 @@ const AdminMatchupsPage: React.FC = () => {
   const [selectedGames, setSelectedGames] = useState<Set<number>>(new Set());
   const [currentGames, setCurrentGames] = useState<Game[]>([]);
   const [fetchLoading, setFetchLoading] = useState(false);
+  const [scrapeLoading, setScrapeLoading] = useState(false);
+  const [spreadScrapeLoading, setSpreadScrapeLoading] = useState(false);
   
   // Use React Query hooks  
   const [weeks, setWeeks] = useState<Week[]>([]);
@@ -120,6 +122,94 @@ const AdminMatchupsPage: React.FC = () => {
     } catch (error) {
       console.error('Error saving matchups:', error);
       alert('Error saving matchups');
+    }
+  };
+
+  const scrapeGames = async () => {
+    if (!selectedWeekId) {
+      alert('Please select a week first');
+      return;
+    }
+    
+    const confirmed = window.confirm(
+      `Scrape games for Week ${currentWeekNumber} without using API credits? ` +
+      'This will replace any existing games for this week.'
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      setScrapeLoading(true);
+      const response = await fetch('/api/admin/scrape-games', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          week: currentWeekNumber,
+          year: 2025
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to scrape games');
+      }
+      
+      const result = await response.json();
+      alert(`✅ Successfully scraped ${result.gamesStored} games and ${result.spreadsAdded || 0} spreads for Week ${result.week}!`);
+      
+      // Refresh the games list
+      fetchAvailableGames();
+      fetchCurrentGames();
+    } catch (error) {
+      console.error('Error scraping games:', error);
+      alert('Error scraping games. Please try again.');
+    } finally {
+      setScrapeLoading(false);
+    }
+  };
+
+  const scrapeSpreads = async () => {
+    if (!selectedWeekId) {
+      alert('Please select a week first');
+      return;
+    }
+    
+    const confirmed = window.confirm(
+      `Scrape spreads for Week ${currentWeekNumber} from free sources? ` +
+      'This will update spreads for games without using API credits.'
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      setSpreadScrapeLoading(true);
+      const response = await fetch('/api/admin/scrape-spreads', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          week: currentWeekNumber,
+          year: 2025
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to scrape spreads');
+      }
+      
+      const result = await response.json();
+      alert(`✅ Updated spreads for ${result.updated} games! Sources: ${result.sources?.join(', ')}`);
+      
+      // Refresh the games list
+      fetchAvailableGames();
+      fetchCurrentGames();
+    } catch (error) {
+      console.error('Error scraping spreads:', error);
+      alert('Error scraping spreads. Please try again.');
+    } finally {
+      setSpreadScrapeLoading(false);
     }
   };
 
@@ -278,6 +368,20 @@ const AdminMatchupsPage: React.FC = () => {
             <span className="text-sm text-gray-600">
               Selected: {selectedGames.size}/8
             </span>
+            <button
+              onClick={scrapeGames}
+              disabled={scrapeLoading}
+              className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              {scrapeLoading ? 'Scraping...' : '🕷️ Scrape Games'}
+            </button>
+            <button
+              onClick={scrapeSpreads}
+              disabled={spreadScrapeLoading}
+              className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              {spreadScrapeLoading ? 'Scraping...' : '🎰 Scrape Spreads'}
+            </button>
             <button
               onClick={lockSpreads}
               className="bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium transition-colors"

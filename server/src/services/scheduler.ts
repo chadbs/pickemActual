@@ -1,6 +1,8 @@
 import cron from 'node-cron';
 import { getTopGamesForWeek, getGameScores, isFavoriteTeam } from './cfbDataApi';
 import { getNCAAFootballOdds, parseOddsData, matchOddsToGames } from './oddsApi';
+import { fetchGamesWithFallback, fetchScoresWithFallback } from './hybridDataFetcher';
+import { cleanupAPIUsageLogs } from './apiUsageMonitor';
 import { runQuery, allQuery, getQuery } from '../database/database';
 import { Week, Game } from '../../../shared/types';
 
@@ -326,22 +328,8 @@ export const fetchWeeklyGames = async (forceRefresh: boolean = false): Promise<v
       await runQuery('DELETE FROM games WHERE week_id = ?', [currentWeek.id]);
     }
     
-    // Fetch games from CFBD API
-    const cfbdGames = await getTopGamesForWeek(year, week);
-    
-    // Fetch odds data
-    let oddsData: any[] = [];
-    try {
-      const rawOdds = await getNCAAFootballOdds();
-      const parsedOdds = parseOddsData(rawOdds);
-      oddsData = parsedOdds;
-      console.log(`Fetched odds for ${oddsData.length} games`);
-    } catch (error) {
-      console.warn('Failed to fetch odds, continuing without spreads:', error);
-    }
-    
-    // Match odds to games
-    const gamesWithOdds = matchOddsToGames(cfbdGames, oddsData);
+    // Use hybrid fetcher (API + fallback)
+    const gamesWithOdds = await fetchGamesWithFallback(year, week);
     
     const gamesWithSpreads = gamesWithOdds.filter(g => g.spread);
     console.log(`Successfully matched spreads for ${gamesWithSpreads.length} out of ${gamesWithOdds.length} games`);
@@ -350,7 +338,7 @@ export const fetchWeeklyGames = async (forceRefresh: boolean = false): Promise<v
     const validGames = gamesWithOdds.filter(game => {
       return game.home_team && 
              game.away_team && 
-             (game.start_date || game.startDate) &&
+             (game.start_date || (game as any).startDate) &&
              typeof game.home_team === 'string' && 
              typeof game.away_team === 'string';
     });
