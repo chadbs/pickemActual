@@ -56,8 +56,8 @@ export const scrapeESPNGames = async (date?: string): Promise<ScrapedGame[]> => 
           if (awayTeam && homeTeam) {
             // Extract scores
             const scoreElements = $game.find('.ScoreCell__Score, .score, .team-score');
-            const awayScore = scoreElements.length > 0 ? parseInt($(scoreElements[0]).text().trim()) || 0 : 0;
-            const homeScore = scoreElements.length > 1 ? parseInt($(scoreElements[1]).text().trim()) || 0 : 0;
+            const awayScore = scoreElements.length > 0 ? parseInt($(scoreElements[0]).text().trim()) || undefined : undefined;
+            const homeScore = scoreElements.length > 1 ? parseInt($(scoreElements[1]).text().trim()) || undefined : undefined;
             
             // Check if game is completed
             const statusElement = $game.find('.ScoreCell__Status, .game-status, .status');
@@ -170,10 +170,12 @@ export const scrapeCBSSports = async (): Promise<ScrapedGame[]> => {
           const homeTeam = teams[1];
           
           // Extract scores
-          const scores = $game.find('.score, .team-score').map((i, el) => {
-            const score = $(el).text().trim();
-            return parseInt(score) || 0;
-          }).get();
+          const scoreElements = $game.find('.score, .team-score');
+          const scores: number[] = [];
+          scoreElements.each((i, el) => {
+            const score = parseInt($(el).text().trim()) || 0;
+            scores.push(score);
+          });
           
           // Check completion status
           const status = $game.find('.status, .game-status').text().toLowerCase();
