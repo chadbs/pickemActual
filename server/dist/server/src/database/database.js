@@ -110,6 +110,17 @@ const initializeDatabase = () => {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users (id),
         UNIQUE(user_id, season_year)
+      )`,
+            // API usage logging table
+            `CREATE TABLE IF NOT EXISTS api_usage_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        service TEXT NOT NULL CHECK(service IN ('cfbd', 'odds')),
+        endpoint TEXT NOT NULL,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        success BOOLEAN NOT NULL,
+        error_message TEXT,
+        credits_remaining INTEGER,
+        response_time_ms INTEGER
       )`
         ];
         let completed = 0;

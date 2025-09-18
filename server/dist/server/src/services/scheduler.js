@@ -3,10 +3,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.startScheduler = exports.updateGameScores = exports.fetchWeeklyGames = exports.fetchAllSeasonGames = void 0;
+exports.startScheduler = exports.updateGameScores = exports.fetchWeeklyGames = exports.fetchAllSeasonGames = exports.ensureActiveWeekExists = void 0;
 const node_cron_1 = __importDefault(require("node-cron"));
 const cfbDataApi_1 = require("./cfbDataApi");
 const oddsApi_1 = require("./oddsApi");
+const hybridDataFetcher_1 = require("./hybridDataFetcher");
 const database_1 = require("../database/database");
 // Get current college football week based on Monday-to-Sunday cycles
 const getCurrentWeek = () => {
@@ -48,12 +49,66 @@ const updateActiveWeek = async () => {
         }
         else {
             console.log(`⚠️ Week ${week} of ${year} not found in database - may need to be created`);
+            // Fallback: Ensure we always have an active week
+            await (0, exports.ensureActiveWeekExists)(year);
         }
     }
     catch (error) {
         console.error('Error updating active week:', error);
+        // Fallback: Ensure we always have an active week even if update fails
+        await (0, exports.ensureActiveWeekExists)(year);
     }
 };
+// Fallback to ensure there's always an active week
+const ensureActiveWeekExists = async (year) => {
+    try {
+        // Check if any week is currently active
+        const activeWeek = await (0, database_1.getQuery)('SELECT * FROM weeks WHERE is_active = 1 AND season_year = ?', [year]);
+        if (activeWeek) {
+            console.log(`✅ Active week already exists: Week ${activeWeek.week_number}`);
+            return;
+        }
+        console.log('⚠️ No active week found, setting fallback...');
+        // Find the week closest to today's date
+        const allWeeks = await (0, database_1.allQuery)('SELECT * FROM weeks WHERE season_year = ? ORDER BY week_number ASC', [year]);
+        if (allWeeks.length === 0) {
+            console.log('No weeks exist in database - this should not happen');
+            return;
+        }
+        // Calculate current week using simpler logic
+        const now = new Date();
+        const currentMonth = now.getMonth(); // 0-11
+        const currentDate = now.getDate();
+        let fallbackWeek = 1;
+        // Simple month-based fallback logic
+        if (currentMonth === 7) { // August - Week 1-2
+            fallbackWeek = currentDate > 31 ? 2 : 1;
+        }
+        else if (currentMonth === 8) { // September - Week 2-5  
+            fallbackWeek = Math.min(5, Math.floor(currentDate / 7) + 2);
+        }
+        else if (currentMonth === 9) { // October - Week 6-9
+            fallbackWeek = Math.min(9, Math.floor(currentDate / 7) + 6);
+        }
+        else if (currentMonth === 10) { // November - Week 10-13
+            fallbackWeek = Math.min(13, Math.floor(currentDate / 7) + 10);
+        }
+        else if (currentMonth <= 6) { // Jan-July: Use Week 1 (pre-season)
+            fallbackWeek = 1;
+        }
+        else { // December: Use Week 13
+            fallbackWeek = 13;
+        }
+        // Make sure the week exists in database
+        const targetWeek = allWeeks.find(w => w.week_number === fallbackWeek) || allWeeks[0];
+        await (0, database_1.runQuery)('UPDATE weeks SET is_active = 1 WHERE id = ?', [targetWeek.id]);
+        console.log(`✅ Set fallback active week: Week ${targetWeek.week_number} of ${year}`);
+    }
+    catch (error) {
+        console.error('Error in ensureActiveWeekExists:', error);
+    }
+};
+exports.ensureActiveWeekExists = ensureActiveWeekExists;
 // Create or update current week
 const ensureCurrentWeek = async () => {
     const { year, week } = getCurrentWeek();
@@ -198,21 +253,8 @@ const fetchWeeklyGames = async (forceRefresh = false) => {
             console.log(`Force refresh requested, clearing ${existingGames.length} existing games for Week ${week}`);
             await (0, database_1.runQuery)('DELETE FROM games WHERE week_id = ?', [currentWeek.id]);
         }
-        // Fetch games from CFBD API
-        const cfbdGames = await (0, cfbDataApi_1.getTopGamesForWeek)(year, week);
-        // Fetch odds data
-        let oddsData = [];
-        try {
-            const rawOdds = await (0, oddsApi_1.getNCAAFootballOdds)();
-            const parsedOdds = (0, oddsApi_1.parseOddsData)(rawOdds);
-            oddsData = parsedOdds;
-            console.log(`Fetched odds for ${oddsData.length} games`);
-        }
-        catch (error) {
-            console.warn('Failed to fetch odds, continuing without spreads:', error);
-        }
-        // Match odds to games
-        const gamesWithOdds = (0, oddsApi_1.matchOddsToGames)(cfbdGames, oddsData);
+        // Use hybrid fetcher (API + fallback)
+        const gamesWithOdds = await (0, hybridDataFetcher_1.fetchGamesWithFallback)(year, week);
         const gamesWithSpreads = gamesWithOdds.filter(g => g.spread);
         console.log(`Successfully matched spreads for ${gamesWithSpreads.length} out of ${gamesWithOdds.length} games`);
         // Filter out games with invalid data
@@ -413,20 +455,32 @@ const startScheduler = () => {
         updateActiveWeek(); // Check active week daily
         (0, exports.updateGameScores)();
     });
+    // Ensure active week every 6 hours (safety net)
+    node_cron_1.default.schedule('0 */6 * * *', () => {
+        console.log('Safety check: Ensuring active week exists...');
+        (0, exports.ensureActiveWeekExists)(2025);
+    });
     console.log('✅ Scheduler tasks registered');
-    // Run initial fetch on startup if no games exist
+    // Run initial checks on startup
     setTimeout(async () => {
         try {
+            // CRITICAL: Ensure there's always an active week on startup
+            console.log('🔄 Startup: Ensuring active week exists...');
+            await (0, exports.ensureActiveWeekExists)(2025);
+            // Check if we need to fetch games
             const gameCount = await (0, database_1.getQuery)('SELECT COUNT(*) as count FROM games');
             if (!gameCount || gameCount.count === 0) {
                 console.log('No games found, running initial fetch...');
                 await (0, exports.fetchWeeklyGames)();
             }
+            console.log('🏈 Scheduler startup complete');
         }
         catch (error) {
-            console.error('Error in initial game check:', error);
+            console.error('Error in scheduler startup:', error);
+            // Even if other things fail, ensure we have an active week
+            await (0, exports.ensureActiveWeekExists)(2025);
         }
-    }, 5000); // Wait 5 seconds after startup
+    }, 3000); // Wait 3 seconds after startup
 };
 exports.startScheduler = startScheduler;
 //# sourceMappingURL=scheduler.js.map

@@ -23,7 +23,10 @@
       "Bash(git push:*)",
       "Bash(PORT=3004 npm run dev)",
       "Bash(sqlite3:*)",
-      "Bash(tasklist:*)"
+      "Bash(tasklist:*)",
+      "Bash(npm start)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

@@ -41,6 +41,8 @@ const database_1 = require("../database/database");
 const cfbDataApi_1 = require("../services/cfbDataApi");
 const oddsApi_1 = require("../services/oddsApi");
 const scheduler_1 = require("../services/scheduler");
+const webScraper_1 = require("../services/webScraper");
+const spreadScraper_1 = require("../services/spreadScraper");
 const router = express_1.default.Router();
 // Debug middleware to log all requests to admin routes
 router.use((req, res, next) => {
@@ -148,16 +150,35 @@ router.get('/preview-games/:year/:week', async (req, res) => {
     try {
         const { year, week } = req.params;
         console.log(`🎯 Preview games requested for ${year} week ${week}`);
-        const cfbdGames = await (0, cfbDataApi_1.getTopGamesForWeek)(parseInt(year), parseInt(week));
-        // Try to get odds
-        let gamesWithOdds = cfbdGames;
+        let cfbdGames = [];
         try {
-            const rawOdds = await (0, oddsApi_1.getNCAAFootballOdds)();
-            const parsedOdds = (0, oddsApi_1.parseOddsData)(rawOdds);
-            gamesWithOdds = (0, oddsApi_1.matchOddsToGames)(cfbdGames, parsedOdds);
+            cfbdGames = await (0, cfbDataApi_1.getTopGamesForWeek)(parseInt(year), parseInt(week));
         }
-        catch (error) {
-            console.warn('Could not fetch odds for preview:', error);
+        catch (apiError) {
+            console.warn('CFBD API Error (likely rate limit):', apiError.message);
+            // Return a fallback message when API is rate limited
+            if (apiError.message?.includes('429') || apiError.message?.includes('quota')) {
+                return res.json({
+                    games: [],
+                    week_info: { year: parseInt(year), week: parseInt(week) },
+                    error: 'College Football Data API quota exceeded. Please try again later or contact support.',
+                    api_limited: true
+                });
+            }
+            // For other API errors, return empty games list
+            console.error('Failed to fetch games from CFBD API:', apiError);
+        }
+        // Try to get odds if we have games
+        let gamesWithOdds = cfbdGames;
+        if (cfbdGames.length > 0) {
+            try {
+                const rawOdds = await (0, oddsApi_1.getNCAAFootballOdds)();
+                const parsedOdds = (0, oddsApi_1.parseOddsData)(rawOdds);
+                gamesWithOdds = (0, oddsApi_1.matchOddsToGames)(cfbdGames, parsedOdds);
+            }
+            catch (error) {
+                console.warn('Could not fetch odds for preview:', error);
+            }
         }
         res.json({
             games: gamesWithOdds.slice(0, 20), // Show top 20 options for selection
@@ -794,6 +815,220 @@ router.get('/preview-orphaned-data', async (req, res) => {
         console.error('Error previewing orphaned data:', error);
         res.status(500).json({
             error: 'Failed to preview orphaned data',
+            details: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+// Scrape data without using API credits
+router.post('/scrape-games', async (req, res) => {
+    try {
+        console.log('🕷️ SCRAPE GAMES ENDPOINT HIT!');
+        const { week, year } = req.body;
+        const targetYear = year || 2025;
+        const targetWeek = week || 1;
+        console.log(`Scraping games for ${targetYear} Week ${targetWeek}...`);
+        // Get current active week if not specified
+        let weekData;
+        if (!week) {
+            weekData = await (0, database_1.getQuery)(`
+        SELECT * FROM weeks 
+        WHERE is_active = 1 AND season_year = ?
+        ORDER BY week_number DESC LIMIT 1
+      `, [targetYear]);
+            if (!weekData) {
+                return res.status(400).json({
+                    error: 'No active week found and no week specified'
+                });
+            }
+        }
+        else {
+            weekData = await (0, database_1.getQuery)(`
+        SELECT * FROM weeks 
+        WHERE week_number = ? AND season_year = ?
+      `, [targetWeek, targetYear]);
+            if (!weekData) {
+                return res.status(400).json({
+                    error: `Week ${targetWeek} of ${targetYear} not found in database`
+                });
+            }
+        }
+        // Clear existing games for this week
+        await (0, database_1.runQuery)('DELETE FROM games WHERE week_id = ?', [weekData.id]);
+        console.log(`Cleared existing games for Week ${weekData.week_number}`);
+        // Scrape new games
+        let scrapedGames = await (0, webScraper_1.scrapeGamesForWeek)(targetYear, weekData.week_number);
+        if (scrapedGames.length === 0) {
+            return res.json({
+                message: 'No games found via scraping',
+                week: weekData.week_number,
+                year: targetYear,
+                gamesStored: 0
+            });
+        }
+        // Try to scrape spreads too
+        let spreadsAdded = 0;
+        try {
+            console.log('🎰 Also scraping spread data...');
+            const scrapedSpreads = await (0, spreadScraper_1.scrapeAllSpreads)();
+            if (scrapedSpreads.length > 0) {
+                scrapedGames = (0, spreadScraper_1.matchSpreadToGames)(scrapedGames, scrapedSpreads);
+                spreadsAdded = scrapedGames.filter(g => g.spread).length;
+                console.log(`✅ Added spreads to ${spreadsAdded} games`);
+            }
+        }
+        catch (error) {
+            console.warn('Spread scraping failed, continuing without spreads:', error);
+        }
+        // Store scraped games in database
+        let storedCount = 0;
+        for (const game of scrapedGames.slice(0, 8)) { // Limit to 8 games
+            try {
+                await (0, database_1.runQuery)(`
+          INSERT INTO games 
+          (week_id, external_game_id, home_team, away_team, spread, favorite_team, 
+           start_time, status, is_favorite_team_game)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+                    weekData.id,
+                    game.id || null,
+                    game.home_team,
+                    game.away_team,
+                    game.spread || null,
+                    game.favorite_team || null,
+                    game.start_date || new Date().toISOString(),
+                    game.completed ? 'completed' : 'scheduled',
+                    false // Will calculate favorite teams later
+                ]);
+                storedCount++;
+            }
+            catch (error) {
+                console.warn(`Error storing game ${game.home_team} vs ${game.away_team}:`, error);
+            }
+        }
+        res.json({
+            message: `Successfully scraped and stored games for Week ${weekData.week_number}`,
+            week: weekData.week_number,
+            year: targetYear,
+            gamesFound: scrapedGames.length,
+            gamesStored: storedCount,
+            spreadsAdded: spreadsAdded,
+            source: 'web_scraping',
+            timestamp: new Date().toISOString()
+        });
+    }
+    catch (error) {
+        console.error('Error in scrape-games endpoint:', error);
+        res.status(500).json({
+            error: 'Failed to scrape games',
+            details: error.message
+        });
+    }
+});
+// Scrape spreads only (without replacing games)
+router.post('/scrape-spreads', async (req, res) => {
+    try {
+        console.log('🎰 SCRAPE SPREADS ENDPOINT HIT!');
+        const { week, year } = req.body;
+        const targetYear = year || 2025;
+        const targetWeek = week || null;
+        // Get games to update spreads for
+        let games;
+        if (targetWeek) {
+            const weekData = await (0, database_1.getQuery)(`
+        SELECT * FROM weeks 
+        WHERE week_number = ? AND season_year = ?
+      `, [targetWeek, targetYear]);
+            if (!weekData) {
+                return res.status(400).json({
+                    error: `Week ${targetWeek} of ${targetYear} not found`
+                });
+            }
+            games = await (0, database_1.allQuery)(`
+        SELECT * FROM games WHERE week_id = ?
+      `, [weekData.id]);
+        }
+        else {
+            // Get all games without spreads
+            games = await (0, database_1.allQuery)(`
+        SELECT g.*, w.week_number FROM games g
+        JOIN weeks w ON g.week_id = w.id
+        WHERE (g.spread IS NULL OR g.favorite_team IS NULL)
+        AND w.season_year = ?
+        ORDER BY w.week_number DESC
+      `, [targetYear]);
+        }
+        if (games.length === 0) {
+            return res.json({
+                message: 'No games found that need spreads',
+                updated: 0
+            });
+        }
+        console.log(`Found ${games.length} games that need spreads`);
+        // Scrape spreads from multiple sources
+        const scrapedSpreads = await (0, spreadScraper_1.scrapeAllSpreads)();
+        if (scrapedSpreads.length === 0) {
+            return res.json({
+                message: 'No spreads found via scraping',
+                updated: 0,
+                sources: ['espn', 'sports-reference', 'vegas-insider']
+            });
+        }
+        // Match and update spreads
+        const gamesWithSpreads = (0, spreadScraper_1.matchSpreadToGames)(games, scrapedSpreads);
+        let updatedCount = 0;
+        for (const game of gamesWithSpreads) {
+            if (game.spread && game.favorite_team) {
+                try {
+                    await (0, database_1.runQuery)(`
+            UPDATE games 
+            SET spread = ?, favorite_team = ? 
+            WHERE id = ?
+          `, [game.spread, game.favorite_team, game.id]);
+                    updatedCount++;
+                }
+                catch (error) {
+                    console.warn(`Error updating spread for game ${game.id}:`, error);
+                }
+            }
+        }
+        res.json({
+            message: `Updated spreads for ${updatedCount} games`,
+            totalGames: games.length,
+            spreadsFound: scrapedSpreads.length,
+            updated: updatedCount,
+            sources: ['espn', 'sports-reference', 'vegas-insider'],
+            timestamp: new Date().toISOString()
+        });
+    }
+    catch (error) {
+        console.error('Error in scrape-spreads endpoint:', error);
+        res.status(500).json({
+            error: 'Failed to scrape spreads',
+            details: error.message
+        });
+    }
+});
+// Manual active week check endpoint
+router.post('/ensure-active-week', async (req, res) => {
+    try {
+        console.log('🔄 Manual active week check triggered');
+        // Import the ensureActiveWeekExists function (we need to make it available)
+        const { ensureActiveWeekExists } = await Promise.resolve().then(() => __importStar(require('../services/scheduler')));
+        await ensureActiveWeekExists(2025);
+        // Get current active week to confirm
+        const activeWeek = await (0, database_1.getQuery)('SELECT * FROM weeks WHERE is_active = 1 AND season_year = 2025');
+        res.json({
+            success: true,
+            message: 'Active week check completed',
+            active_week: activeWeek || null,
+            timestamp: new Date().toISOString()
+        });
+    }
+    catch (error) {
+        console.error('Error in manual active week check:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to ensure active week',
             details: error instanceof Error ? error.message : 'Unknown error'
         });
     }
