@@ -3,6 +3,7 @@ import { refreshGameData, getDataSourceStatus } from '../services/hybridDataFetc
 import { scrapeGamesForWeek } from '../services/webScraper';
 import { scrapeAllSpreads, matchSpreadToGames } from '../services/spreadScraper';
 import { runQuery, getQuery, allQuery } from '../database/database';
+import { getTopGamesForWeek } from '../services/cfbDataApi';
 
 const router = express.Router();
 
@@ -50,7 +51,7 @@ router.post('/scrape-games', async (req, res) => {
     }
     
     // Clear existing games for this week
-    await runQuery('DELETE FROM games WHERE week_id = ?', [weekData.id]);
+    await runQuery('DELETE FROM games WHERE week_id = ?', [(weekData as any).id]);
     console.log(`Cleared existing games for Week ${weekData.week_number}`);
     
     // Scrape new games
@@ -89,7 +90,7 @@ router.post('/scrape-games', async (req, res) => {
            start_time, status, is_favorite_team_game)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
-          weekData.id,
+          (weekData as any).id,
           game.id || null,
           game.home_team,
           game.away_team,
@@ -101,7 +102,7 @@ router.post('/scrape-games', async (req, res) => {
         ]);
         storedCount++;
       } catch (error) {
-        console.warn(`Error storing game ${game.home_team} vs ${game.away_team}:`, error);
+        console.warn(`Error storing game ${(game as any).home_team || (game as any).homeTeam} vs ${(game as any).away_team || (game as any).awayTeam}:`, error);
       }
     }
     
@@ -197,7 +198,7 @@ router.post('/scrape-spreads', async (req, res) => {
       
       games = await allQuery(`
         SELECT * FROM games WHERE week_id = ?
-      `, [weekData.id]);
+      `, [(weekData as any).id]);
     } else {
       // Get all games without spreads
       games = await allQuery(`
@@ -275,6 +276,186 @@ router.post('/fetch-spreads', async (req, res) => {
     total: 0,
     timestamp: new Date().toISOString()
   });
+});
+
+// Get top 20 games for selection
+router.get('/top-games/:year/:week', async (req, res) => {
+  try {
+    const { year, week } = req.params;
+    const targetYear = parseInt(year) || 2025;
+    const targetWeek = parseInt(week) || 1;
+
+    console.log(`Getting top 20 games for ${targetYear} Week ${targetWeek}`);
+
+    // Get top games from CFBD API
+    const topGames = await getTopGamesForWeek(targetYear, targetWeek);
+
+    // Check which games are already selected for this week
+    const weekData = await getQuery(`
+      SELECT * FROM weeks
+      WHERE week_number = ? AND season_year = ?
+    `, [targetWeek, targetYear]);
+
+    let selectedGameIds: string[] = [];
+    if (weekData) {
+      const selectedGames = await allQuery(`
+        SELECT external_game_id FROM games WHERE week_id = ?
+      `, [(weekData as any).id]);
+      selectedGameIds = selectedGames.map((g: any) => g.external_game_id).filter(Boolean);
+    }
+
+    // Add selection status to each game
+    const gamesWithStatus = topGames.map((game: any) => ({
+      ...game,
+      isSelected: selectedGameIds.includes((game as any).id?.toString())
+    }));
+
+    res.json({
+      games: gamesWithStatus,
+      week: targetWeek,
+      year: targetYear,
+      totalAvailable: topGames.length,
+      selectedCount: selectedGameIds.length,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error: any) {
+    console.error('Error getting top games:', error);
+    res.status(500).json({
+      error: 'Failed to get top games',
+      details: error.message
+    });
+  }
+});
+
+// Select specific games for a week
+router.post('/select-games', async (req, res) => {
+  try {
+    const { year, week, gameIds } = req.body;
+    const targetYear = year || 2025;
+    const targetWeek = week || 1;
+
+    if (!gameIds || !Array.isArray(gameIds)) {
+      return res.status(400).json({
+        error: 'gameIds array is required'
+      });
+    }
+
+    console.log(`Selecting ${gameIds.length} games for ${targetYear} Week ${targetWeek}`);
+
+    // Get or create week
+    let weekData = await getQuery(`
+      SELECT * FROM weeks
+      WHERE week_number = ? AND season_year = ?
+    `, [targetWeek, targetYear]);
+
+    if (!weekData) {
+      return res.status(400).json({
+        error: `Week ${targetWeek} of ${targetYear} not found in database`
+      });
+    }
+
+    // Clear existing games for this week
+    await runQuery('DELETE FROM games WHERE week_id = ?', [(weekData as any).id]);
+    console.log(`Cleared existing games for Week ${targetWeek}`);
+
+    // Get the full game data for selected games
+    const topGames = await getTopGamesForWeek(targetYear, targetWeek);
+    const selectedGames = topGames.filter((game: any) =>
+      gameIds.includes((game as any).id?.toString())
+    );
+
+    if (selectedGames.length === 0) {
+      return res.status(400).json({
+        error: 'No valid games found with provided IDs'
+      });
+    }
+
+    // Store selected games in database
+    let storedCount = 0;
+    for (const game of selectedGames) {
+      try {
+        await runQuery(`
+          INSERT INTO games
+          (week_id, external_game_id, home_team, away_team,
+           start_time, status, is_favorite_team_game, home_conference, away_conference)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          (weekData as any).id,
+          (game as any).id?.toString() || null,
+          (game as any).home_team || (game as any).homeTeam,
+          (game as any).away_team || (game as any).awayTeam,
+          (game as any).start_date || (game as any).startDate || new Date().toISOString(),
+          (game as any).completed ? 'completed' : 'scheduled',
+          false, // Will calculate later
+          (game as any).home_conference || (game as any).homeConference || null,
+          (game as any).away_conference || (game as any).awayConference || null
+        ]);
+        storedCount++;
+      } catch (error) {
+        console.warn(`Error storing game ${(game as any).home_team || (game as any).homeTeam} vs ${(game as any).away_team || (game as any).awayTeam}:`, error);
+      }
+    }
+
+    res.json({
+      message: `Successfully selected ${storedCount} games for Week ${targetWeek}`,
+      week: targetWeek,
+      year: targetYear,
+      gamesSelected: storedCount,
+      gameIds: gameIds,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error: any) {
+    console.error('Error selecting games:', error);
+    res.status(500).json({
+      error: 'Failed to select games',
+      details: error.message
+    });
+  }
+});
+
+// Get currently selected games for a week
+router.get('/selected-games/:year/:week', async (req, res) => {
+  try {
+    const { year, week } = req.params;
+    const targetYear = parseInt(year) || 2025;
+    const targetWeek = parseInt(week) || 1;
+
+    const weekData = await getQuery(`
+      SELECT * FROM weeks
+      WHERE week_number = ? AND season_year = ?
+    `, [targetWeek, targetYear]);
+
+    if (!weekData) {
+      return res.status(400).json({
+        error: `Week ${targetWeek} of ${targetYear} not found`
+      });
+    }
+
+    const selectedGames = await allQuery(`
+      SELECT g.*, w.week_number, w.season_year
+      FROM games g
+      JOIN weeks w ON g.week_id = w.id
+      WHERE g.week_id = ?
+      ORDER BY g.start_time
+    `, [(weekData as any).id]);
+
+    res.json({
+      games: selectedGames,
+      week: targetWeek,
+      year: targetYear,
+      count: selectedGames.length,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error: any) {
+    console.error('Error getting selected games:', error);
+    res.status(500).json({
+      error: 'Failed to get selected games',
+      details: error.message
+    });
+  }
 });
 
 export default router;
