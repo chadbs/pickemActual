@@ -167,6 +167,7 @@ process.on('SIGTERM', () => {
 
 startServer();
 
-// MAJOR CHANGE: Force complete Railway server rebuild
-// Updated: Mon Sep 22 2025 - Added comprehensive admin game selection system
-// This should trigger a complete server redeploy on Railway
+// CRITICAL UPDATE - Railway server redeploy required
+// Fixed API quota fallback + added new scraped-games endpoint
+// This is a major server update that must be deployed
+console.log('🚀 SERVER UPDATED: New scraped-games endpoint available at /admin/scraped-games/:year/:week');
