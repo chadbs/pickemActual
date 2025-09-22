@@ -197,6 +197,19 @@ router.get('/top-games/:year/:week', async (req, res) => {
         const targetYear = parseInt(year) || 2025;
         const targetWeek = parseInt(week) || 1;
         console.log(`Getting top 20 games for ${targetYear} Week ${targetWeek}`);
+        // Check if CFBD API key is configured
+        if (!process.env.CFBD_API_KEY) {
+            return res.status(400).json({
+                error: 'CFBD API not configured',
+                message: 'College Football Data API key is not set. Please use the scraping options instead.',
+                games: [],
+                week: targetWeek,
+                year: targetYear,
+                totalAvailable: 0,
+                selectedCount: 0,
+                timestamp: new Date().toISOString()
+            });
+        }
         // Get top games from CFBD API
         const topGames = await (0, cfbDataApi_1.getTopGamesForWeek)(targetYear, targetWeek);
         // Check which games are already selected for this week

@@ -77,14 +77,23 @@ const AdminMatchupsPage: React.FC = () => {
       // Use the new top games endpoint to automatically load top 20 games
       const response = await adminApi.getTopGames(selectedWeek.season_year, selectedWeek.week_number);
       setAvailableGames(response.data.games || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching available games:', error);
+
+      // If API key is not configured, show a helpful message
+      if (error.response?.status === 400 && error.response?.data?.error === 'CFBD API not configured') {
+        console.log('CFBD API not configured, games will need to be scraped or fetched manually');
+        setAvailableGames([]);
+        return;
+      }
+
       // Fallback to preview games if top games fails
       try {
         const fallbackResponse = await adminApi.previewGames(selectedWeek.season_year, selectedWeek.week_number);
         setAvailableGames(fallbackResponse.data.games || []);
       } catch (fallbackError) {
         console.error('Fallback also failed:', fallbackError);
+        setAvailableGames([]);
       }
     } finally {
       setFetchLoading(false);
@@ -102,9 +111,14 @@ const AdminMatchupsPage: React.FC = () => {
       const response = await adminApi.getTopGames(selectedWeek.season_year, selectedWeek.week_number);
       setAvailableGames(response.data.games || []);
       console.log(`✅ Loaded ${response.data.games?.length || 0} top games for Week ${selectedWeek.week_number}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching top 20 games:', error);
-      alert('Error fetching top 20 games. Please try again.');
+
+      if (error.response?.status === 400 && error.response?.data?.error === 'CFBD API not configured') {
+        alert('CFBD API is not configured. Please use the "Scrape Games" or "Fetch Games for This Week" buttons instead.');
+      } else {
+        alert('Error fetching top 20 games. Please try the scraping options instead.');
+      }
     } finally {
       setTopGamesLoading(false);
     }
