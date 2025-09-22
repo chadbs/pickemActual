@@ -29,6 +29,7 @@ const AdminMatchupsPage: React.FC = () => {
   const [fetchLoading, setFetchLoading] = useState(false);
   const [scrapeLoading, setScrapeLoading] = useState(false);
   const [spreadScrapeLoading, setSpreadScrapeLoading] = useState(false);
+  const [topGamesLoading, setTopGamesLoading] = useState(false);
   
   // Use React Query hooks  
   const [weeks, setWeeks] = useState<Week[]>([]);
@@ -66,18 +67,45 @@ const AdminMatchupsPage: React.FC = () => {
   
   const fetchAvailableGames = async () => {
     if (!selectedWeekId) return;
-    
+
     const selectedWeek = weeks.find(w => w.id === selectedWeekId);
     if (!selectedWeek) return;
-    
+
     try {
       setFetchLoading(true);
-      const response = await adminApi.previewGames(selectedWeek.season_year, selectedWeek.week_number);
+      // Use the new top games endpoint to automatically load top 20 games
+      const response = await adminApi.getTopGames(selectedWeek.season_year, selectedWeek.week_number);
       setAvailableGames(response.data.games || []);
     } catch (error) {
       console.error('Error fetching available games:', error);
+      // Fallback to preview games if top games fails
+      try {
+        const fallbackResponse = await adminApi.previewGames(selectedWeek.season_year, selectedWeek.week_number);
+        setAvailableGames(fallbackResponse.data.games || []);
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+      }
     } finally {
       setFetchLoading(false);
+    }
+  };
+
+  const fetchTop20Games = async () => {
+    if (!selectedWeekId) return;
+
+    const selectedWeek = weeks.find(w => w.id === selectedWeekId);
+    if (!selectedWeek) return;
+
+    try {
+      setTopGamesLoading(true);
+      const response = await adminApi.getTopGames(selectedWeek.season_year, selectedWeek.week_number);
+      setAvailableGames(response.data.games || []);
+      console.log(`✅ Loaded ${response.data.games?.length || 0} top games for Week ${selectedWeek.week_number}`);
+    } catch (error) {
+      console.error('Error fetching top 20 games:', error);
+      alert('Error fetching top 20 games. Please try again.');
+    } finally {
+      setTopGamesLoading(false);
     }
   };
   
@@ -368,6 +396,13 @@ const AdminMatchupsPage: React.FC = () => {
             <span className="text-sm text-gray-600">
               Selected: {selectedGames.size}/8
             </span>
+            <button
+              onClick={fetchTop20Games}
+              disabled={topGamesLoading}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              {topGamesLoading ? 'Loading...' : '🏈 Get Top 20 Games'}
+            </button>
             <button
               onClick={scrapeGames}
               disabled={scrapeLoading}

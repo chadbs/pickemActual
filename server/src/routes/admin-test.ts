@@ -129,13 +129,13 @@ router.get('/preview-games/:year/:week', async (req, res) => {
   try {
     const { year, week } = req.params;
     console.log(`🎯 Preview games requested for ${year} week ${week}`);
-    
+
     let cfbdGames: any[] = [];
     try {
       cfbdGames = await getTopGamesForWeek(parseInt(year), parseInt(week));
     } catch (apiError: any) {
       console.warn('CFBD API Error (likely rate limit):', apiError.message);
-      
+
       // Return a fallback message when API is rate limited
       if (apiError.message?.includes('429') || apiError.message?.includes('quota')) {
         return res.json({
@@ -145,11 +145,11 @@ router.get('/preview-games/:year/:week', async (req, res) => {
           api_limited: true
         });
       }
-      
+
       // For other API errors, return empty games list
       console.error('Failed to fetch games from CFBD API:', apiError);
     }
-    
+
     // Try to get odds if we have games
     let gamesWithOdds = cfbdGames;
     if (cfbdGames.length > 0) {
@@ -161,7 +161,7 @@ router.get('/preview-games/:year/:week', async (req, res) => {
         console.warn('Could not fetch odds for preview:', error);
       }
     }
-    
+
     res.json({
       games: gamesWithOdds.slice(0, 20), // Show top 20 options for selection
       week_info: { year: parseInt(year), week: parseInt(week) }
@@ -169,6 +169,55 @@ router.get('/preview-games/:year/:week', async (req, res) => {
   } catch (error) {
     console.error('Error previewing games:', error);
     res.status(500).json({ error: 'Failed to preview games' });
+  }
+});
+
+// Get top 20 games for selection
+router.get('/top-games/:year/:week', async (req, res) => {
+  try {
+    const { year, week } = req.params;
+    const targetYear = parseInt(year) || 2025;
+    const targetWeek = parseInt(week) || 1;
+
+    console.log(`Getting top 20 games for ${targetYear} Week ${targetWeek}`);
+
+    // Get top games from CFBD API
+    const topGames = await getTopGamesForWeek(targetYear, targetWeek);
+
+    // Check which games are already selected for this week
+    const weekData = await getQuery(`
+      SELECT * FROM weeks
+      WHERE week_number = ? AND season_year = ?
+    `, [targetWeek, targetYear]);
+
+    let selectedGameIds: string[] = [];
+    if (weekData) {
+      const selectedGames = await allQuery(`
+        SELECT external_game_id FROM games WHERE week_id = ?
+      `, [(weekData as any).id]);
+      selectedGameIds = selectedGames.map((g: any) => g.external_game_id).filter(Boolean);
+    }
+
+    // Add selection status to each game
+    const gamesWithStatus = topGames.map((game: any) => ({
+      ...game,
+      isSelected: selectedGameIds.includes((game as any).id?.toString())
+    }));
+
+    res.json({
+      games: gamesWithStatus,
+      week: targetWeek,
+      year: targetYear,
+      totalAvailable: topGames.length,
+      selectedCount: selectedGameIds.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    console.error('Error getting top games:', error);
+    res.status(500).json({
+      error: 'Failed to get top games',
+      details: error.message
+    });
   }
 });
 
