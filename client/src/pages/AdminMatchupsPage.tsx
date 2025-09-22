@@ -213,37 +213,18 @@ const AdminMatchupsPage: React.FC = () => {
       alert('Please select a week first');
       return;
     }
-    
-    const confirmed = window.confirm(
-      `Scrape games for Week ${currentWeekNumber} without using API credits? ` +
-      'This will replace any existing games for this week.'
-    );
-    
-    if (!confirmed) return;
-    
+    const selectedWeek = weeks.find(w => w.id === selectedWeekId);
+    if (!selectedWeek) return;
+
     try {
       setScrapeLoading(true);
-      const response = await fetch('/api/admin/scrape-games', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          week: currentWeekNumber,
-          year: 2025
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to scrape games');
-      }
-      
-      const result = await response.json();
-      alert(`✅ Successfully scraped ${result.gamesStored} games and ${result.spreadsAdded || 0} spreads for Week ${result.week}!`);
-      
-      // Refresh the games list
-      fetchAvailableGames();
-      fetchCurrentGames();
+      const response = await adminApi.getScrapedGames(selectedWeek.season_year, selectedWeek.week_number);
+      setAvailableGames(response.data.games || []);
+
+      // Show notification about the scraping
+      alert(`🕷️ Successfully scraped ${response.data.games?.length || 0} unique games for selection!`);
+
+      console.log(`✅ Loaded ${response.data.games?.length || 0} scraped games for Week ${selectedWeek.week_number}`);
     } catch (error) {
       console.error('Error scraping games:', error);
       alert('Error scraping games. Please try again.');
@@ -450,7 +431,7 @@ const AdminMatchupsPage: React.FC = () => {
               <div>
                 <h4 className="text-blue-800 font-medium">No games loaded yet</h4>
                 <p className="text-blue-700 text-sm">
-                  Click "🏈 Get Top 20 Games", "📡 Fetch Games for This Week", or "🕷️ Scrape Games" to load games for this week.
+                  Click "🏈 Get Top 20 Games", "📡 Fetch Games for This Week", or "🕷️ Get Scraped Games" to load games for this week.
                 </p>
               </div>
             </div>
@@ -483,7 +464,7 @@ const AdminMatchupsPage: React.FC = () => {
               disabled={scrapeLoading}
               className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium transition-colors"
             >
-              {scrapeLoading ? 'Scraping...' : '🕷️ Scrape Games'}
+              {scrapeLoading ? 'Scraping...' : '🕷️ Get Scraped Games'}
             </button>
             <button
               onClick={scrapeSpreads}

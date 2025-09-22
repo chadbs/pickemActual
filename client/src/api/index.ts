@@ -171,6 +171,9 @@ export const adminApi = {
 
   getTopGames: (year: number, week: number) =>
     api.get<any>(`/admin/top-games/${year}/${week}`),
+
+  getScrapedGames: (year: number, week: number) =>
+    api.get<any>(`/admin/scraped-games/${year}/${week}`),
   
   createGames: (data: { week_id: number; selected_games: any[] }) =>
     api.post<any>('/admin/create-games', data),

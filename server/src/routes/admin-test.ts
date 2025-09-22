@@ -172,6 +172,151 @@ router.get('/preview-games/:year/:week', async (req, res) => {
   }
 });
 
+// Get scraped games for selection (alternative to top-games when API fails)
+router.get('/scraped-games/:year/:week', async (req, res) => {
+  try {
+    const { year, week } = req.params;
+    const targetYear = parseInt(year) || 2025;
+    const targetWeek = parseInt(week) || 1;
+
+    console.log(`Getting scraped games for selection: ${targetYear} Week ${targetWeek}`);
+
+    // Import scraper
+    const { scrapeGamesForWeek } = await import('../services/webScraper');
+    const scrapedGames = await scrapeGamesForWeek(targetYear, targetWeek);
+
+    if (scrapedGames.length === 0) {
+      return res.json({
+        games: [],
+        week: targetWeek,
+        year: targetYear,
+        totalAvailable: 0,
+        selectedCount: 0,
+        dataSource: 'web_scraping',
+        message: 'No games found via scraping',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Apply intelligent scoring like we do for API games
+    const { isFavoriteTeam } = await import('../services/cfbDataApi');
+
+    const popularPrograms = new Set([
+      'Alabama', 'Georgia', 'Texas', 'Oklahoma', 'USC', 'Notre Dame', 'Michigan', 'Ohio State',
+      'Penn State', 'Florida', 'LSU', 'Auburn', 'Tennessee', 'Florida State', 'Miami', 'Clemson',
+      'Oregon', 'Washington', 'UCLA', 'Stanford', 'Wisconsin', 'Iowa', 'Michigan State', 'Nebraska',
+      'Colorado', 'Colorado State', 'Utah', 'Arizona State', 'Arizona', 'BYU', 'TCU', 'Baylor',
+      'Texas A&M', 'Ole Miss', 'Mississippi State', 'Arkansas', 'Kentucky', 'Vanderbilt', 'South Carolina',
+      'North Carolina', 'NC State', 'Duke', 'Wake Forest', 'Virginia', 'Virginia Tech', 'Louisville',
+      'Kansas', 'Kansas State', 'Oklahoma State', 'Texas Tech', 'Houston', 'Cincinnati', 'UCF',
+      'West Virginia', 'Pittsburgh', 'Syracuse', 'Boston College', 'Maryland', 'Rutgers'
+    ]);
+
+    // Remove duplicates based on team matchup
+    const uniqueGames = [];
+    const seenMatchups = new Set();
+
+    for (const game of scrapedGames) {
+      const matchupKey = [game.home_team, game.away_team].sort().join(' vs ');
+      if (!seenMatchups.has(matchupKey)) {
+        seenMatchups.add(matchupKey);
+        uniqueGames.push(game);
+      }
+    }
+
+    console.log(`Removed duplicates: ${scrapedGames.length} -> ${uniqueGames.length} unique games`);
+
+    // Score games for selection
+    const scoredGames = uniqueGames.map((game: any) => {
+      let score = 0;
+
+      // HIGHEST PRIORITY: Favorite team games
+      if (isFavoriteTeam(game.home_team) || isFavoriteTeam(game.away_team)) {
+        score += 10000;
+        console.log(`Favorite team game (scraped): ${game.away_team} @ ${game.home_team}`);
+      }
+
+      // HIGH PRIORITY: Both teams are popular programs
+      if (popularPrograms.has(game.home_team) && popularPrograms.has(game.away_team)) {
+        score += 500;
+        console.log(`Popular matchup (scraped): ${game.away_team} @ ${game.home_team}`);
+      }
+      // MEDIUM: One team is popular program
+      else if (popularPrograms.has(game.home_team) || popularPrograms.has(game.away_team)) {
+        score += 250;
+      }
+
+      // Convert to API-like format for consistency
+      return {
+        id: parseInt(game.id) || Math.floor(Math.random() * 1000000),
+        season: targetYear,
+        week: targetWeek,
+        seasonType: 'regular',
+        startDate: game.start_date,
+        homeTeam: game.home_team,
+        awayTeam: game.away_team,
+        home_team: game.home_team,
+        away_team: game.away_team,
+        start_date: game.start_date,
+        completed: game.completed,
+        selection_score: score,
+        source: 'web_scraping'
+      };
+    });
+
+    // Sort by score and return top 20
+    const topGames = scoredGames
+      .sort((a, b) => b.selection_score - a.selection_score)
+      .slice(0, 20);
+
+    console.log(`Top 20 scraped games for selection:`, topGames.slice(0, 10).map((g: any) => `${g.away_team} @ ${g.home_team} (${g.selection_score})`));
+
+    // Check which games are already selected for this week
+    const weekData = await getQuery(`
+      SELECT * FROM weeks
+      WHERE week_number = ? AND season_year = ?
+    `, [targetWeek, targetYear]);
+
+    let selectedGameIds: string[] = [];
+    if (weekData) {
+      const selectedGames = await allQuery(`
+        SELECT external_game_id FROM games WHERE week_id = ?
+      `, [(weekData as any).id]);
+      selectedGameIds = selectedGames.map((g: any) => g.external_game_id).filter(Boolean);
+    }
+
+    // Add selection status to each game
+    const gamesWithStatus = topGames.map((game: any) => ({
+      ...game,
+      isSelected: selectedGameIds.includes(game.id?.toString())
+    }));
+
+    res.json({
+      games: gamesWithStatus,
+      week: targetWeek,
+      year: targetYear,
+      totalAvailable: topGames.length,
+      selectedCount: selectedGameIds.length,
+      dataSource: 'web_scraping',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error: any) {
+    console.error('Error scraping games for selection:', error);
+    res.status(500).json({
+      error: 'Failed to scrape games',
+      details: error.message,
+      games: [],
+      week: parseInt(req.params.week) || 1,
+      year: parseInt(req.params.year) || 2025,
+      totalAvailable: 0,
+      selectedCount: 0,
+      dataSource: 'web_scraping',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Get top 20 games for selection
 router.get('/top-games/:year/:week', async (req, res) => {
   try {
