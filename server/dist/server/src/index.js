@@ -148,5 +148,5 @@ process.on('SIGTERM', () => {
     console.log('Shutting down server...');
     process.exit(0);
 });
-startServer();
+startServer(); // Force Railway redeploy Mon Sep 22 11:49:42 EDT 2025
 //# sourceMappingURL=index.js.map
