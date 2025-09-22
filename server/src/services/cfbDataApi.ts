@@ -82,8 +82,19 @@ export const getGamesForWeek = async (year: number, week: number): Promise<CFBDG
       }
     });
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching games from CFBD API:', error);
+
+    // Check for quota exceeded error
+    if (error.response?.status === 429) {
+      throw new Error('CFBD API monthly quota exceeded. Please try again next month or use the scraping option instead.');
+    }
+
+    // Check for other API errors
+    if (error.response?.status >= 400) {
+      throw new Error(`CFBD API error (${error.response.status}): ${error.response.data?.message || 'API request failed'}`);
+    }
+
     throw new Error('Failed to fetch games from College Football Data API');
   }
 };
@@ -209,6 +220,7 @@ const getRankValue = (teamName: string, rankings: CFBDRanking[]): number => {
 // Get top games based on rankings and our favorite teams
 export const getTopGamesForWeek = async (year: number, week: number): Promise<CFBDGameResponse[]> => {
   try {
+    // Try API first
     const games = await getGamesForWeek(year, week);
     const rankings = await getRankings(year, week);
     
@@ -328,9 +340,87 @@ export const getTopGamesForWeek = async (year: number, week: number): Promise<CF
     console.log(`Top 20 games for selection:`, topGames.slice(0, 10).map((g: any) => `${g.away_team} @ ${g.home_team} (${g.selection_score})`));
     
     return topGames;
-    
-  } catch (error) {
-    console.error('Error getting top games:', error);
+
+  } catch (error: any) {
+    console.error('Error getting top games from API:', error);
+
+    // Check if it's a quota exceeded error - fallback to scraping
+    if (error.message?.includes('quota exceeded') || error.response?.status === 429) {
+      console.log('🕷️ API quota exceeded, falling back to web scraping...');
+
+      try {
+        // Import scraper dynamically to avoid circular dependencies
+        const { scrapeGamesForWeek } = await import('./webScraper');
+        const scrapedGames = await scrapeGamesForWeek(year, week);
+
+        console.log(`Scraped ${scrapedGames.length} games as fallback`);
+
+        // Convert scraped games to API format and apply scoring
+        const convertedGames = scrapedGames.map((game: any) => {
+          let score = 0;
+
+          // HIGHEST PRIORITY: Favorite team games
+          if (isFavoriteTeam(game.home_team) || isFavoriteTeam(game.away_team)) {
+            score += 10000;
+            console.log(`Favorite team game (scraped): ${game.away_team} @ ${game.home_team}`);
+          }
+
+          // Popular programs bonus (no rankings available from scraping)
+          const popularPrograms = new Set([
+            'Alabama', 'Georgia', 'Texas', 'Oklahoma', 'USC', 'Notre Dame', 'Michigan', 'Ohio State',
+            'Penn State', 'Florida', 'LSU', 'Auburn', 'Tennessee', 'Florida State', 'Miami', 'Clemson',
+            'Oregon', 'Washington', 'UCLA', 'Stanford', 'Wisconsin', 'Iowa', 'Michigan State', 'Nebraska',
+            'Colorado', 'Colorado State', 'Utah', 'Arizona State', 'Arizona', 'BYU', 'TCU', 'Baylor',
+            'Texas A&M', 'Ole Miss', 'Mississippi State', 'Arkansas', 'Kentucky', 'Vanderbilt', 'South Carolina',
+            'North Carolina', 'NC State', 'Duke', 'Wake Forest', 'Virginia', 'Virginia Tech', 'Louisville',
+            'Kansas', 'Kansas State', 'Oklahoma State', 'Texas Tech', 'Houston', 'Cincinnati', 'UCF',
+            'West Virginia', 'Pittsburgh', 'Syracuse', 'Boston College', 'Maryland', 'Rutgers'
+          ]);
+
+          if (popularPrograms.has(game.home_team) && popularPrograms.has(game.away_team)) {
+            score += 500;
+          } else if (popularPrograms.has(game.home_team) || popularPrograms.has(game.away_team)) {
+            score += 250;
+          }
+
+          // Convert to API format
+          return {
+            id: parseInt(game.id) || Math.floor(Math.random() * 1000000),
+            season: year,
+            week: week,
+            seasonType: 'regular',
+            startDate: game.start_date,
+            startTimeTBD: false,
+            neutralSite: false,
+            conferenceGame: false,
+            homeTeam: game.home_team,
+            awayTeam: game.away_team,
+            home_team: game.home_team,
+            away_team: game.away_team,
+            start_date: game.start_date,
+            completed: game.completed,
+            selection_score: score,
+            source: 'web_scraping'
+          };
+        });
+
+        // Sort by score and return top 20
+        const topScrapedGames = convertedGames
+          .sort((a, b) => b.selection_score - a.selection_score)
+          .slice(0, 20);
+
+        console.log(`Returning top ${topScrapedGames.length} scraped games`);
+        console.log('Top scraped games:', topScrapedGames.slice(0, 5).map(g => `${g.away_team} @ ${g.home_team} (${g.selection_score})`));
+
+        return topScrapedGames as CFBDGameResponse[];
+
+      } catch (scrapeError) {
+        console.error('Scraping fallback also failed:', scrapeError);
+        throw new Error('Both API and scraping failed. Please try again later.');
+      }
+    }
+
+    // For other errors, just re-throw
     throw error;
   }
 };

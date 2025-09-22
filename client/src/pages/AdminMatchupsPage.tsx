@@ -110,7 +110,13 @@ const AdminMatchupsPage: React.FC = () => {
       setTopGamesLoading(true);
       const response = await adminApi.getTopGames(selectedWeek.season_year, selectedWeek.week_number);
       setAvailableGames(response.data.games || []);
-      console.log(`✅ Loaded ${response.data.games?.length || 0} top games for Week ${selectedWeek.week_number}`);
+
+      // Show notification if scraping fallback was used
+      if (response.data.dataSource === 'web_scraping') {
+        alert('ℹ️ API quota exceeded - automatically used web scraping to get games. Games loaded successfully!');
+      }
+
+      console.log(`✅ Loaded ${response.data.games?.length || 0} top games for Week ${selectedWeek.week_number} (source: ${response.data.dataSource || 'API'})`);
     } catch (error: any) {
       console.error('Error fetching top 20 games:', error);
 

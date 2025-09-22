@@ -165,4 +165,8 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 
-startServer();// Force Railway redeploy Mon Sep 22 11:49:42 EDT 2025
+startServer();
+
+// MAJOR CHANGE: Force complete Railway server rebuild
+// Updated: Mon Sep 22 2025 - Added comprehensive admin game selection system
+// This should trigger a complete server redeploy on Railway

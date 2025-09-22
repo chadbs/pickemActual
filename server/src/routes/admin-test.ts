@@ -224,10 +224,43 @@ router.get('/top-games/:year/:week', async (req, res) => {
       year: targetYear,
       totalAvailable: topGames.length,
       selectedCount: selectedGameIds.length,
+      dataSource: (topGames[0] as any)?.source || 'cfbd_api', // Indicate data source
       timestamp: new Date().toISOString()
     });
   } catch (error: any) {
     console.error('Error getting top games:', error);
+
+    // Handle cases where API quota exceeded but scraping fallback succeeded
+    if (error.message?.includes('quota exceeded') && !error.message?.includes('Both API and scraping failed')) {
+      // This should not happen anymore due to automatic fallback, but keep for safety
+      return res.status(400).json({
+        error: 'CFBD API quota exceeded',
+        message: 'Monthly API call limit reached. Automatic fallback to scraping should have worked.',
+        suggestedAction: 'Try again or use "🕷️ Scrape Games" button directly',
+        games: [],
+        week: parseInt(req.params.week) || 1,
+        year: parseInt(req.params.year) || 2025,
+        totalAvailable: 0,
+        selectedCount: 0,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Handle other API errors
+    if (error.message?.includes('CFBD API error')) {
+      return res.status(400).json({
+        error: 'CFBD API error',
+        message: error.message,
+        suggestedAction: 'Use "🕷️ Scrape Games" button instead',
+        games: [],
+        week: parseInt(req.params.week) || 1,
+        year: parseInt(req.params.year) || 2025,
+        totalAvailable: 0,
+        selectedCount: 0,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     res.status(500).json({
       error: 'Failed to get top games',
       details: error.message
