@@ -41,11 +41,11 @@ const AdminMatchupsPage: React.FC = () => {
     fetchWeeks();
   }, []);
   
-  // Fetch available games when week changes
+  // Fetch current games when week changes (but not available games to avoid 500 errors)
   useEffect(() => {
     if (selectedWeekId) {
-      fetchAvailableGames();
       fetchCurrentGames();
+      // Don't auto-fetch available games to avoid 500 errors when API isn't configured
     }
   }, [selectedWeekId]);
   
@@ -437,6 +437,19 @@ const AdminMatchupsPage: React.FC = () => {
       
       {/* Available Games Selection */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
+        {availableGames.length === 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center">
+              <div className="text-blue-600 mr-3">ℹ️</div>
+              <div>
+                <h4 className="text-blue-800 font-medium">No games loaded yet</h4>
+                <p className="text-blue-700 text-sm">
+                  Click "🏈 Get Top 20 Games", "📡 Fetch Games for This Week", or "🕷️ Scrape Games" to load games for this week.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-900">
             Available Games - Week {currentWeekNumber} ({availableGames.length} options)
