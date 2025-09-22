@@ -17,7 +17,13 @@ router.use((req, res, next) => {
 // Test routes with multiple HTTP methods for debugging
 router.get('/test', (req, res) => {
   console.log('🔍 GET /test route hit');
-  res.json({ message: 'Admin test working! (GET)', method: 'GET', timestamp: new Date().toISOString() });
+  res.json({
+    message: 'Admin test working! (GET)',
+    method: 'GET',
+    version: '2.0-SCRAPED-GAMES-ENDPOINT-ADDED',
+    newEndpoints: ['/admin/scraped-games/:year/:week'],
+    timestamp: new Date().toISOString()
+  });
 });
 
 router.post('/test', (req, res) => {
