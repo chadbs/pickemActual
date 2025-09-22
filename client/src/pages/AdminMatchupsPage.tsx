@@ -30,6 +30,7 @@ const AdminMatchupsPage: React.FC = () => {
   const [scrapeLoading, setScrapeLoading] = useState(false);
   const [spreadScrapeLoading, setSpreadScrapeLoading] = useState(false);
   const [topGamesLoading, setTopGamesLoading] = useState(false);
+  const [fetchGamesLoading, setFetchGamesLoading] = useState(false);
   
   // Use React Query hooks  
   const [weeks, setWeeks] = useState<Week[]>([]);
@@ -106,6 +107,40 @@ const AdminMatchupsPage: React.FC = () => {
       alert('Error fetching top 20 games. Please try again.');
     } finally {
       setTopGamesLoading(false);
+    }
+  };
+
+  const fetchGamesForWeek = async () => {
+    if (!selectedWeekId) return;
+
+    const selectedWeek = weeks.find(w => w.id === selectedWeekId);
+    if (!selectedWeek) return;
+
+    const confirmed = window.confirm(
+      `Fetch games for Week ${selectedWeek.week_number} using API? ` +
+      'This will get the latest games data for this week.'
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setFetchGamesLoading(true);
+      const response = await adminApi.fetchGamesForWeek({
+        year: selectedWeek.season_year,
+        week_number: selectedWeek.week_number,
+        week_id: selectedWeek.id
+      });
+
+      alert(`✅ Successfully fetched ${response.data.games_created || 0} games for Week ${selectedWeek.week_number}!`);
+
+      // Refresh the games list
+      fetchAvailableGames();
+      fetchCurrentGames();
+    } catch (error) {
+      console.error('Error fetching games:', error);
+      alert('Error fetching games. Please try again.');
+    } finally {
+      setFetchGamesLoading(false);
     }
   };
   
@@ -402,6 +437,13 @@ const AdminMatchupsPage: React.FC = () => {
               className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium transition-colors"
             >
               {topGamesLoading ? 'Loading...' : '🏈 Get Top 20 Games'}
+            </button>
+            <button
+              onClick={fetchGamesForWeek}
+              disabled={fetchGamesLoading}
+              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              {fetchGamesLoading ? 'Fetching...' : '📡 Fetch Games for This Week'}
             </button>
             <button
               onClick={scrapeGames}

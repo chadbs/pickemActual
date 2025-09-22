@@ -27,7 +27,8 @@
       "Bash(npm start)",
       "Bash(netstat:*)",
       "Bash(findstr:*)",
-      "Bash(PORT=3004 npm start)"
+      "Bash(PORT=3004 npm start)",
+      "Bash(git remote set-url:*)"
     ],
     "deny": [],
     "ask": []
