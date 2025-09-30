@@ -45,7 +45,8 @@
       "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" deploy --verbose)",
       "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" apps list)",
       "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" logs --limit 20)",
-      "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" logs)"
+      "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" logs)",
+      "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" logs --limit 50)"
     ],
     "deny": [],
     "ask": []

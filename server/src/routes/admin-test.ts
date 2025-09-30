@@ -1,6 +1,6 @@
 import express from 'express';
 import { runQuery, getQuery, allQuery } from '../database/database';
-import { getTopGamesForWeek } from '../services/cfbDataApi';
+import { getTopGamesForWeek, isFavoriteTeam } from '../services/cfbDataApi';
 import { getNCAAFootballOdds, parseOddsData, matchOddsToGames } from '../services/oddsApi';
 import { fetchWeeklyGames, updateGameScores, fetchAllSeasonGames } from '../services/scheduler';
 import { scrapeGamesForWeek } from '../services/webScraper';
@@ -205,7 +205,6 @@ router.get('/scraped-games/:year/:week', async (req, res) => {
     }
 
     // Apply intelligent scoring like we do for API games
-    const { isFavoriteTeam } = await import('../services/cfbDataApi');
 
     const popularPrograms = new Set([
       'Alabama', 'Georgia', 'Texas', 'Oklahoma', 'USC', 'Notre Dame', 'Michigan', 'Ohio State',
@@ -359,7 +358,6 @@ router.get('/top-games/:year/:week', async (req, res) => {
 
         if (scrapedGames.length > 0) {
           // Apply the same scoring logic as scraped-games route
-          const { isFavoriteTeam } = await import('../services/cfbDataApi');
           const popularPrograms = new Set([
             'Alabama', 'Georgia', 'Texas', 'Oklahoma', 'USC', 'Notre Dame', 'Michigan', 'Ohio State',
             'Penn State', 'Florida', 'LSU', 'Auburn', 'Tennessee', 'Florida State', 'Miami', 'Clemson',
