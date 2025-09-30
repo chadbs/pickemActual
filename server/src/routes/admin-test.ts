@@ -178,6 +178,21 @@ router.get('/preview-games/:year/:week', async (req, res) => {
   }
 });
 
+// Test route to debug scraped-games issue
+router.get('/test-scraped-games/:year/:week', async (req, res) => {
+  try {
+    const { year, week } = req.params;
+    res.json({
+      message: "Test scraped games route working",
+      year: parseInt(year),
+      week: parseInt(week),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Test route failed", details: (error as Error).message });
+  }
+});
+
 // Get scraped games for selection (alternative to top-games when API fails)
 router.get('/scraped-games/:year/:week', async (req, res) => {
   try {
