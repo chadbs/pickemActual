@@ -193,6 +193,38 @@ router.get('/test-scraped-games/:year/:week', async (req, res) => {
   }
 });
 
+// Debug route to test scraper function
+router.get('/test-scraper-function/:year/:week', async (req, res) => {
+  try {
+    const { year, week } = req.params;
+    console.log('Debug: Testing scraper function');
+
+    // Try importing the scraper function
+    const { scrapeGamesForWeek } = require('../services/webScraper');
+    console.log('Debug: Scraper function imported successfully');
+
+    // Try calling isFavoriteTeam
+    console.log('Debug: Testing isFavoriteTeam function');
+    const testResult = isFavoriteTeam('Alabama');
+    console.log('Debug: isFavoriteTeam result:', testResult);
+
+    res.json({
+      message: "All functions accessible",
+      year: parseInt(year),
+      week: parseInt(week),
+      isFavoriteTest: testResult,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Debug route error:', error);
+    res.status(500).json({
+      error: "Debug test failed",
+      details: (error as Error).message,
+      stack: (error as Error).stack
+    });
+  }
+});
+
 // Get scraped games for selection (alternative to top-games when API fails)
 router.get('/scraped-games/:year/:week', async (req, res) => {
   try {
