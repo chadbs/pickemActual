@@ -56,9 +56,14 @@ if (isProduction) {
 
 // Create data directory if it doesn't exist
 // In production (Fly.io), use the mounted volume path, otherwise relative path for development
+console.log('Environment check:', { NODE_ENV: process.env.NODE_ENV, isProduction, __dirname });
 const dataDir = isProduction ? '/app/server/data' : path.join(__dirname, '../data');
+console.log('Using data directory:', dataDir);
 if (!fs.existsSync(dataDir)) {
+  console.log('Creating data directory:', dataDir);
   fs.mkdirSync(dataDir, { recursive: true });
+} else {
+  console.log('Data directory already exists:', dataDir);
 }
 
 // Debug middleware to log all requests

@@ -2,9 +2,11 @@ import sqlite3 from 'sqlite3';
 import path from 'path';
 import fs from 'fs';
 
-// Use Railway-compatible database path with persistent volume
-const DB_PATH = process.env.RAILWAY_ENVIRONMENT 
-  ? '/data/cfb_pickem.db'  // Railway persistent volume
+// Use production-compatible database path with persistent volume
+// Railway: /data/cfb_pickem.db, Fly.io: /app/server/data/cfb_pickem.db
+const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT;
+const DB_PATH = isProduction
+  ? (process.env.RAILWAY_ENVIRONMENT ? '/data/cfb_pickem.db' : '/app/server/data/cfb_pickem.db')
   : path.join(__dirname, '../../data/cfb_pickem.db'); // Local development
 
 // Ensure directory exists
