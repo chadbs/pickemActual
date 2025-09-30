@@ -346,8 +346,79 @@ router.get('/top-games/:year/:week', async (req, res) => {
       });
     }
 
-    // Get top games from CFBD API
-    const topGames = await getTopGamesForWeek(targetYear, targetWeek);
+    // Get top games from CFBD API with fallback to scraping
+    let topGames: any[] = [];
+    try {
+      topGames = await getTopGamesForWeek(targetYear, targetWeek);
+    } catch (apiError: any) {
+      console.warn('CFBD API failed, falling back to scraping:', apiError.message);
+
+      // If API fails (quota exceeded, etc.), fall back to scraping
+      try {
+        const scrapedGames = await scrapeGamesForWeek(targetYear, targetWeek);
+
+        if (scrapedGames.length > 0) {
+          // Apply the same scoring logic as scraped-games route
+          const { isFavoriteTeam } = await import('../services/cfbDataApi');
+          const popularPrograms = new Set([
+            'Alabama', 'Georgia', 'Texas', 'Oklahoma', 'USC', 'Notre Dame', 'Michigan', 'Ohio State',
+            'Penn State', 'Florida', 'LSU', 'Auburn', 'Tennessee', 'Florida State', 'Miami', 'Clemson',
+            'Oregon', 'Washington', 'UCLA', 'Stanford', 'Wisconsin', 'Iowa', 'Michigan State', 'Nebraska',
+            'Colorado', 'Colorado State', 'Utah', 'Arizona State', 'Arizona', 'BYU', 'TCU', 'Baylor',
+            'Texas A&M', 'Ole Miss', 'Mississippi State', 'Arkansas', 'Kentucky', 'Vanderbilt', 'South Carolina',
+            'North Carolina', 'NC State', 'Duke', 'Wake Forest', 'Virginia', 'Virginia Tech', 'Louisville',
+            'Kansas', 'Kansas State', 'Oklahoma State', 'Texas Tech', 'Houston', 'Cincinnati', 'UCF',
+            'West Virginia', 'Pittsburgh', 'Syracuse', 'Boston College', 'Maryland', 'Rutgers'
+          ]);
+
+          // Remove duplicates and score games
+          const uniqueGames = [];
+          const seenMatchups = new Set();
+
+          for (const game of scrapedGames) {
+            const matchupKey = [game.home_team, game.away_team].sort().join(' vs ');
+            if (!seenMatchups.has(matchupKey)) {
+              seenMatchups.add(matchupKey);
+              uniqueGames.push(game);
+            }
+          }
+
+          const scoredGames = uniqueGames.map((game: any) => {
+            let score = 0;
+            if (isFavoriteTeam(game.home_team) || isFavoriteTeam(game.away_team)) {
+              score += 10000;
+            }
+            if (popularPrograms.has(game.home_team) && popularPrograms.has(game.away_team)) {
+              score += 500;
+            } else if (popularPrograms.has(game.home_team) || popularPrograms.has(game.away_team)) {
+              score += 250;
+            }
+
+            return {
+              id: parseInt(game.id) || Math.floor(Math.random() * 1000000),
+              season: targetYear,
+              week: targetWeek,
+              seasonType: 'regular',
+              startDate: game.start_date,
+              homeTeam: game.home_team,
+              awayTeam: game.away_team,
+              home_team: game.home_team,
+              away_team: game.away_team,
+              start_date: game.start_date,
+              completed: game.completed,
+              selection_score: score,
+              source: 'web_scraping_fallback'
+            };
+          });
+
+          topGames = scoredGames.sort((a, b) => b.selection_score - a.selection_score).slice(0, 20);
+          console.log(`✅ Fallback scraping successful: Found ${topGames.length} games`);
+        }
+      } catch (scrapingError) {
+        console.error('Both API and scraping failed:', scrapingError);
+        throw new Error(`Both API and scraping failed. API: ${apiError.message}, Scraping: ${(scrapingError as Error).message}`);
+      }
+    }
 
     // Check which games are already selected for this week
     const weekData = await getQuery(`

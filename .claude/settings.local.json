@@ -34,7 +34,18 @@
       "Bash(flyctl auth:*)",
       "Bash(C:Userschads.flybinflyctl.exe auth signup)",
       "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" version)",
-      "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" auth whoami)"
+      "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" auth whoami)",
+      "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" auth login)",
+      "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" apps create cfb-pickem-app)",
+      "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" volumes create cfb_data --size 1 --region ord)",
+      "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" volumes create cfb_data --size 1 --region ord --yes)",
+      "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" secrets set CFBD_API_KEY=test123)",
+      "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" deploy)",
+      "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" status)",
+      "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" deploy --verbose)",
+      "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" apps list)",
+      "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" logs --limit 20)",
+      "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" logs)"
     ],
     "deny": [],
     "ask": []
