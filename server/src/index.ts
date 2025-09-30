@@ -144,9 +144,10 @@ const startServer = async () => {
     startScheduler();
     console.log('Scheduler started');
     
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`🏈 CFB Pick'em Server running on port ${PORT}`);
       console.log(`🌐 Health check: http://localhost:${PORT}/api/health`);
+      console.log(`🚀 Listening on 0.0.0.0:${PORT} for Fly.io compatibility`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
