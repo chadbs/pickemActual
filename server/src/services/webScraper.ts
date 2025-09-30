@@ -21,123 +21,160 @@ export const scrapeESPNGames = async (date?: string): Promise<ScrapedGame[]> => 
   try {
     // Use current date if not provided
     const targetDate = date || new Date().toISOString().split('T')[0].replace(/-/g, '');
-    
+
     const url = `https://www.espn.com/college-football/scoreboard/_/date/${targetDate}`;
     console.log(`Scraping ESPN scoreboard: ${url}`);
-    
+
     const response = await axios.get(url, {
       timeout: 15000,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate',
-        'DNT': '1',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1'
       }
     });
-    
+
     const $ = cheerio.load(response.data);
     const games: ScrapedGame[] = [];
-    
-    // ESPN's game cards structure
-    $('.Scoreboard__ScheduleCard, .ScoreCell, .gameModules').each((index, element) => {
-      try {
-        const $game = $(element);
-        
-        // Extract team names from different possible selectors
-        const teamElements = $game.find('.ScoreCell__TeamName, .team-name, .sb-team-short, .competitors .team');
-        
-        if (teamElements.length >= 2) {
-          const awayTeam = $(teamElements[0]).text().trim();
-          const homeTeam = $(teamElements[1]).text().trim();
-          
-          if (awayTeam && homeTeam) {
+
+    // Modern ESPN scoreboard structure - try multiple selectors
+    const gameSelectors = [
+      '.Scoreboard__Row',
+      '.GameCard',
+      '.scoreboard-card',
+      '.game-strip',
+      '[data-testid="scoreboard-card"]',
+      '.ScoreCell'
+    ];
+
+    for (const selector of gameSelectors) {
+      $(selector).each((index, element) => {
+        try {
+          const $game = $(element);
+
+          // Multiple ways to extract team names
+          let teams: string[] = [];
+
+          // Method 1: ScoreCell team names
+          const teamElements = $game.find('.ScoreCell__TeamName, .team-name, .sb-team-short, .competitors .team, .team-displayname');
+          if (teamElements.length >= 2) {
+            teams = teamElements.map((i, el) => $(el).text().trim()).get();
+          }
+
+          // Method 2: Team abbreviations or logos
+          if (teams.length < 2) {
+            const abbrevElements = $game.find('.team-abbrev, .team-logo, .Scoreboard__Team');
+            if (abbrevElements.length >= 2) {
+              teams = abbrevElements.map((i, el) => $(el).attr('title') || $(el).text().trim()).get();
+            }
+          }
+
+          // Method 3: Data attributes
+          if (teams.length < 2) {
+            const awayTeam = $game.find('[data-away-team], .away-team').text().trim() ||
+                            $game.find('.team').first().text().trim();
+            const homeTeam = $game.find('[data-home-team], .home-team').text().trim() ||
+                            $game.find('.team').last().text().trim();
+            if (awayTeam && homeTeam) {
+              teams = [awayTeam, homeTeam];
+            }
+          }
+
+          if (teams.length >= 2 && teams[0] && teams[1]) {
+            const awayTeam = normalizeTeamName(teams[0]);
+            const homeTeam = normalizeTeamName(teams[1]);
+
+            // Skip if teams are the same (parsing error)
+            if (awayTeam === homeTeam) return;
+
             // Extract scores
-            const scoreElements = $game.find('.ScoreCell__Score, .score, .team-score');
+            const scoreElements = $game.find('.ScoreCell__Score, .score, .team-score, .final-score');
             const awayScore = scoreElements.length > 0 ? parseInt($(scoreElements[0]).text().trim()) || undefined : undefined;
             const homeScore = scoreElements.length > 1 ? parseInt($(scoreElements[1]).text().trim()) || undefined : undefined;
-            
+
             // Check if game is completed
-            const statusElement = $game.find('.ScoreCell__Status, .game-status, .status');
+            const statusElement = $game.find('.ScoreCell__Status, .game-status, .status, .game-state');
             const status = statusElement.text().trim().toLowerCase();
-            const completed = status.includes('final') || status.includes('f/');
-            
+            const completed = status.includes('final') || status.includes('f/') || status.includes('completed');
+
             // Extract game time/date
-            const timeElement = $game.find('.ScoreCell__Time, .game-time, .time');
+            const timeElement = $game.find('.ScoreCell__Time, .game-time, .time, .date-time');
             const gameTime = timeElement.text().trim();
-            
-            // Generate a unique ID based on teams and date
-            const gameId = `${awayTeam.replace(/\s+/g, '')}_${homeTeam.replace(/\s+/g, '')}_${targetDate}`;
-            
+
+            // Create proper start date
+            const gameDate = date ? new Date(parseInt(date.slice(0,4)), parseInt(date.slice(4,6))-1, parseInt(date.slice(6,8))) : new Date();
+
+            // Generate a unique ID based on teams and date only (not time)
+            const gameId = `espn_${awayTeam.replace(/\s+/g, '')}_${homeTeam.replace(/\s+/g, '')}_${targetDate}`;
+
             games.push({
               id: gameId,
               home_team: homeTeam,
               away_team: awayTeam,
-              start_date: new Date().toISOString(), // Use current time as fallback
+              start_date: gameDate.toISOString(),
               home_score: completed ? homeScore : undefined,
               away_score: completed ? awayScore : undefined,
               completed,
               source: 'scrape'
             });
           }
+        } catch (error) {
+          console.warn('Error parsing game element:', error);
         }
-      } catch (error) {
-        console.warn('Error parsing game element:', error);
-      }
-    });
-    
-    // Alternative parsing for different ESPN layouts
+      });
+
+      // If we found games with this selector, break
+      if (games.length > 0) break;
+    }
+
+    // Fallback parsing for alternative ESPN layouts
     if (games.length === 0) {
-      $('.Card, .game-strip, .game').each((index, element) => {
-        try {
-          const $game = $(element);
-          const gameText = $game.text();
-          
-          // Look for team vs team patterns
-          const vsMatch = gameText.match(/([^0-9\n]+)\s+vs?\s+([^0-9\n]+)/i);
-          const atMatch = gameText.match(/([^0-9\n]+)\s+@\s+([^0-9\n]+)/i);
-          
-          if (vsMatch || atMatch) {
-            const match = vsMatch || atMatch;
-            const team1 = match![1].trim();
-            const team2 = match![2].trim();
-            
-            // Extract scores with regex
-            const scoreMatch = gameText.match(/(\d+)\s*-\s*(\d+)/);
-            const scores = scoreMatch ? [parseInt(scoreMatch[1]), parseInt(scoreMatch[2])] : [0, 0];
-            
-            const completed = gameText.toLowerCase().includes('final');
-            const gameId = `${team1.replace(/\s+/g, '')}_${team2.replace(/\s+/g, '')}_${targetDate}`;
-            
-            games.push({
-              id: gameId,
-              home_team: team2, // In @ format, second team is home
-              away_team: team1,
-              start_date: new Date().toISOString(),
-              home_score: completed ? scores[1] : undefined,
-              away_score: completed ? scores[0] : undefined,
-              completed,
-              source: 'scrape'
+      console.log('Trying fallback parsing...');
+      $('script').each((index, element) => {
+        const scriptContent = $(element).html() || '';
+        if (scriptContent.includes('games') || scriptContent.includes('scoreboard')) {
+          // Try to extract game data from JSON in scripts
+          const jsonMatches = scriptContent.match(/\{[^{}]*"games"[^{}]*\}/g);
+          if (jsonMatches) {
+            jsonMatches.forEach(jsonStr => {
+              try {
+                const gameData = JSON.parse(jsonStr);
+                // Process game data if it matches expected structure
+                console.log('Found potential game data in script:', gameData);
+              } catch (e) {
+                // Ignore JSON parse errors
+              }
             });
           }
-        } catch (error) {
-          console.warn('Error parsing alternative game format:', error);
         }
       });
     }
-    
+
     await logAPICall('cfbd', '/scrape/espn', true);
-    console.log(`✅ Scraped ${games.length} games from ESPN`);
-    
+    console.log(`✅ Scraped ${games.length} games from ESPN for ${targetDate}`);
+
     return games;
-    
+
   } catch (error: any) {
     console.error('Error scraping ESPN:', error.message);
     await logAPICall('cfbd', '/scrape/espn', false, error.message);
     return [];
   }
+};
+
+// Helper function to normalize team names
+const normalizeTeamName = (teamName: string): string => {
+  return teamName
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/[^\w\s&'-]/g, '')
+    .replace(/\b(St|Saint)\b/gi, 'State')
+    .replace(/\b(Univ|University)\b/gi, '')
+    .trim();
 };
 
 // Scrape CBS Sports for additional data and spreads
@@ -267,32 +304,37 @@ export const scrapeAllSources = async (): Promise<ScrapedGame[]> => {
 // Scrape games for a specific week (try multiple date ranges)
 export const scrapeGamesForWeek = async (year: number, week: number): Promise<ScrapedGame[]> => {
   const games: ScrapedGame[] = [];
-  
+
   // Calculate approximate dates for the week
   const baseDate = new Date(year, 7, 25); // Aug 25 season start
   const weekStart = new Date(baseDate.getTime() + ((week - 1) * 7 * 24 * 60 * 60 * 1000));
-  
+
   // Try scraping Thursday through Sunday of that week
   for (let dayOffset = 3; dayOffset <= 6; dayOffset++) { // Thu-Sun
     const targetDate = new Date(weekStart.getTime() + (dayOffset * 24 * 60 * 60 * 1000));
     const dateString = targetDate.toISOString().split('T')[0].replace(/-/g, '');
-    
+
     try {
       const dayGames = await scrapeESPNGames(dateString);
       games.push(...dayGames);
-      
+
       // Small delay between requests
       await new Promise(resolve => setTimeout(resolve, 1000));
     } catch (error) {
       console.warn(`Failed to scrape ${dateString}:`, error);
     }
   }
-  
-  // Deduplicate and return
+
+  // Better deduplication by team matchup (not just ID)
   const uniqueGames = games.filter((game, index, self) => {
-    return index === self.findIndex(g => g.id === game.id);
+    return index === self.findIndex(g => {
+      // Create normalized matchup keys for comparison
+      const gameKey = [game.home_team, game.away_team].sort().join('_').toLowerCase();
+      const gKey = [g.home_team, g.away_team].sort().join('_').toLowerCase();
+      return gameKey === gKey;
+    });
   });
-  
-  console.log(`Scraped ${uniqueGames.length} games for Week ${week}`);
+
+  console.log(`Scraped ${games.length} games, deduplicated to ${uniqueGames.length} unique games for Week ${week}`);
   return uniqueGames;
 };

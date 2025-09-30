@@ -1250,7 +1250,7 @@ router.post('/scrape-games', async (req, res) => {
     let spreadsAdded = 0;
     try {
       console.log('🎰 Also scraping spread data...');
-      const scrapedSpreads = await scrapeAllSpreads();
+      const scrapedSpreads = await scrapeAllSpreads(scrapedGames); // Pass games for fallback
       if (scrapedSpreads.length > 0) {
         scrapedGames = matchSpreadToGames(scrapedGames, scrapedSpreads);
         spreadsAdded = scrapedGames.filter(g => g.spread).length;

@@ -28,7 +28,13 @@
       "Bash(netstat:*)",
       "Bash(findstr:*)",
       "Bash(PORT=3004 npm start)",
-      "Bash(git remote set-url:*)"
+      "Bash(git remote set-url:*)",
+      "Bash(powershell -Command \"iwr https://fly.io/install.ps1 -useb | iex\")",
+      "Bash($env:PATH += \";C:\\Users\\chads\\.fly\\bin\")",
+      "Bash(flyctl auth:*)",
+      "Bash(C:Userschads.flybinflyctl.exe auth signup)",
+      "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" version)",
+      "Bash(\"/c/Users/chads/.fly/bin/flyctl.exe\" auth whoami)"
     ],
     "deny": [],
     "ask": []
