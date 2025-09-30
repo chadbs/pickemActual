@@ -55,7 +55,8 @@ if (isProduction) {
 }
 
 // Create data directory if it doesn't exist
-const dataDir = path.join(__dirname, '../data');
+// In production (Fly.io), use the mounted volume path, otherwise relative path for development
+const dataDir = isProduction ? '/app/server/data' : path.join(__dirname, '../data');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
