@@ -100,18 +100,54 @@ router.post('/fetch-spreads', async (req, res) => {
     }
     
     const games = await allQuery<any>('SELECT * FROM games WHERE week_id = ?', [currentWeek.id]);
-    
-    // For now, just return success without actually calling the API
-    // This prevents API quota usage during testing
-    res.json({ 
-      message: 'Fetch spreads endpoint working (API key configured)',
-      updated: 0,
-      total: games.length,
-      week: currentWeek.week_number,
-      spreads_locked: false,
-      apiKeyStatus: 'configured',
-      timestamp: new Date().toISOString()
-    });
+
+    // Actually fetch odds and update spreads
+    let updated = 0;
+    try {
+      console.log('Fetching NCAA football odds...');
+      const rawOdds = await getNCAAFootballOdds();
+      console.log(`Fetched ${rawOdds.length} odds entries`);
+
+      const parsedOdds = parseOddsData(rawOdds);
+      console.log(`Parsed ${parsedOdds.length} odds entries`);
+
+      const gamesWithOdds = matchOddsToGames(games, parsedOdds);
+      console.log(`Matched odds to ${gamesWithOdds.length} games`);
+
+      // Update database with new spreads
+      for (const game of gamesWithOdds) {
+        if (game.spread !== null && game.favorite_team) {
+          await runQuery(
+            'UPDATE games SET spread = ?, favorite_team = ? WHERE id = ?',
+            [game.spread, game.favorite_team, game.id]
+          );
+          updated++;
+          console.log(`Updated game ${game.id}: spread=${game.spread}, favorite=${game.favorite_team}`);
+        }
+      }
+
+      res.json({
+        message: `Successfully updated spreads for ${updated} out of ${games.length} games`,
+        updated: updated,
+        total: games.length,
+        week: currentWeek.week_number,
+        spreads_locked: false,
+        apiKeyStatus: 'configured',
+        timestamp: new Date().toISOString()
+      });
+    } catch (oddsError) {
+      console.error('Error fetching odds:', oddsError);
+      res.json({
+        message: 'Fetch spreads completed with errors (check logs)',
+        updated: updated,
+        total: games.length,
+        week: currentWeek.week_number,
+        spreads_locked: false,
+        apiKeyStatus: 'configured',
+        error: oddsError instanceof Error ? oddsError.message : 'Unknown error',
+        timestamp: new Date().toISOString()
+      });
+    }
   } catch (error) {
     console.error('Error in fetch spreads:', error);
     res.status(500).json({ 
