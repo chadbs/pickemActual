@@ -402,19 +402,57 @@ export const updateGameScores = async (): Promise<void> => {
     console.log(`Processing ${allCompletedGames.length} total completed games across all weeks`);
     
     for (const game of allCompletedGames) {
-      // Find corresponding game in our database with flexible team name matching
-      const dbGame = await getQuery<Game>(
-        `SELECT * FROM games WHERE external_game_id = ? 
-         OR (LOWER(home_team) LIKE ? AND LOWER(away_team) LIKE ?)
-         OR (LOWER(away_team) LIKE ? AND LOWER(home_team) LIKE ?)`,
-        [
-          game.id?.toString(), 
-          `%${game.homeTeam?.toLowerCase().split(' ')[0]}%`,
-          `%${game.awayTeam?.toLowerCase().split(' ')[0]}%`,
-          `%${game.homeTeam?.toLowerCase().split(' ')[0]}%`, 
-          `%${game.awayTeam?.toLowerCase().split(' ')[0]}%`
-        ]
+      // Find corresponding game in our database with precise team name matching
+      // First try exact match by external_game_id
+      let dbGame = await getQuery<Game>(
+        `SELECT * FROM games WHERE external_game_id = ?`,
+        [game.id?.toString()]
       );
+
+      // If no exact ID match, try precise team name matching
+      if (!dbGame && game.homeTeam && game.awayTeam) {
+        // Normalize team names for comparison (remove common suffixes, handle abbreviations)
+        const normalizeTeamName = (name: string): string => {
+          return name.toLowerCase()
+            .replace(/\s+(university|college|state university|tech|polytechnic|a&m)$/i, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+        };
+
+        const normalizedHomeTeam = normalizeTeamName(game.homeTeam);
+        const normalizedAwayTeam = normalizeTeamName(game.awayTeam);
+
+        // Try exact normalized matches first
+        dbGame = await getQuery<Game>(
+          `SELECT * FROM games WHERE
+           (LOWER(REPLACE(REPLACE(home_team, ' University', ''), ' State University', '')) = ? AND
+            LOWER(REPLACE(REPLACE(away_team, ' University', ''), ' State University', '')) = ?)
+           OR
+           (LOWER(REPLACE(REPLACE(away_team, ' University', ''), ' State University', '')) = ? AND
+            LOWER(REPLACE(REPLACE(home_team, ' University', ''), ' State University', '')) = ?)`,
+          [normalizedHomeTeam, normalizedAwayTeam, normalizedHomeTeam, normalizedAwayTeam]
+        );
+
+        // Only if exact normalized matching fails, try careful partial matching
+        // This prevents "Michigan" from matching "Michigan State"
+        if (!dbGame) {
+          const homeWords = normalizedHomeTeam.split(' ');
+          const awayWords = normalizedAwayTeam.split(' ');
+
+          // Only match if we have multiple words and can be more specific
+          if (homeWords.length >= 2 && awayWords.length >= 2) {
+            const homePattern = homeWords.slice(0, 2).join(' '); // Take first 2 words
+            const awayPattern = awayWords.slice(0, 2).join(' '); // Take first 2 words
+
+            dbGame = await getQuery<Game>(
+              `SELECT * FROM games WHERE
+               (LOWER(home_team) LIKE ? AND LOWER(away_team) LIKE ?)
+               OR (LOWER(away_team) LIKE ? AND LOWER(home_team) LIKE ?)`,
+              [`%${homePattern}%`, `%${awayPattern}%`, `%${homePattern}%`, `%${awayPattern}%`]
+            );
+          }
+        }
+      }
       
       if (dbGame) {
         console.log(`Found database match for ${game.homeTeam} vs ${game.awayTeam} (Score: ${game.homePoints}-${game.awayPoints})`);
